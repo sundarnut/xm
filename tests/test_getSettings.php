@@ -2,7 +2,7 @@
 // Module Name:  xm website
 // Project:      xm website to track everyday expenses
 //
-// File: test_getSettings.php - test web-service that gets list of configured settings in DB
+// File: test_getSettings.php - get list of configured settings in DB
 //
 // Input JSON:
 //    None
@@ -22,22 +22,22 @@
 //   }}
 //
 // Functions:
-//     None
+//    None
 //
 // Query Parameters:
-//     s: Must contain configured value for this test to be executed
+//    None
 //
 // Custom Headers:
-//     None
+//     ApiKey: Must contain magic value for this service to be employed
 //
 // Session Variables:
 //     None
 //
 // Stored Procedures:
-//     None
+//    getSettings - get list of all settings in DB
 //
 // JavaScript functions:
-//     None
+//    None
 //
 // Revisions:
 //     1. Sundar Krishnamurthy          sundar_k@hotmail.com       06/10/2017      Initial file created.
@@ -58,10 +58,10 @@ ob_start();
 session_start();
 
 // Break out of test if key not present in incoming request
-if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$")) {           // $$ TEST_QUERY_KEY $$
+if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$")) {    // $$ TEST_QUERY_KEY $$
     exit();
-}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$"))         //  $$ TEST_QUERY_KEY $$
-	
+}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$"))    // $$ TEST_QUERY_KEY $$
+
 // First off, check if the application is being used by someone not typing the actual server name in the header
 if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
@@ -73,9 +73,16 @@ if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
 $ch = curl_init();
 
 curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "services/getSettings.php");
-curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: $$API_KEY$$'));                // $$ API_KEY $$
+curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+    'ApiKey: $$API_KEY$$',           // $$ API_KEY $$
+    'Accept: application/json'));
+
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+
+// if (isset($_COOKIE["PHPSESSID"])) {
+//    curl_setopt($ch, CURLOPT_COOKIE, "PHPSESSID=" . $_COOKIE["PHPSESSID"]);
+// }   //  End if (isset($_COOKIE["PHPSESSID"]))
 
 session_write_close();
 
@@ -88,8 +95,6 @@ $curlyBracePosition = strpos($settings, "{\"response\":", 0);
 if ($curlyBracePosition > 0) {
     $settings = substr($settings, $curlyBracePosition);
 }   //  End if ($curlyBracePosition > 0)
-
-die($settings);
 
 $settingsJson = json_decode($settings, true);
 $response = $settingsJson["response"];
