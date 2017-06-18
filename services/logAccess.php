@@ -34,10 +34,10 @@
 //     ApiKey: Must contain magic value for this service to be employed
 //
 // Session Variables:
-//     xmSession - stored in memcache
+//     None
 //
 // Stored Procedures:
-//    logUserAccess - log the user access parameters
+//     logUserAccess - log the user access parameters
 //
 // JavaScript functions:
 //    None
