@@ -65,7 +65,7 @@ if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$")) {           //
 // First off, check if the application is being used by someone not typing the actual server name in the header
 if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
-    header("Location: http://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
+    header("Location: https://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
     exit();
 }   //  End if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier)
 	
