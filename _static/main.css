@@ -1,0 +1,267 @@
+/****************************** Module Header ******************************
+ * Module Name:  xm website
+ * Project:      xm website to track everyday expenses
+ *
+ * Main CSS
+ *
+ * Revisions:
+ *     1. Sundar Krishnamurthy          sundar_k@hotmail.com       06/10/2017      Initial file created.
+ ***************************************************************************/
+
+/* body class for setting bgcolor, 0 margin */
+body.bodyContent {
+    margin: 0px;
+    background-color: #FFFFFF;
+}
+
+/* div for displaying banner image */
+div.bannerContent {
+    margin: 0px;
+    height: 82px;
+    background-color: #CCCCCC;
+    text-align: left;
+    font-family: Calibri, Verdana, Arial;
+    font-size: x-large;
+}
+
+/* div for displaying footer content */
+div.footerContent {
+    margin: 0px;
+    background-color: #DDDDDD;
+    text-align: left;
+    font-family: Calibri, Verdana, Arial;
+    font-size: medium;
+    vertical-align: bottom;
+    text-align: center;
+}
+
+/* table class for login form */
+table.loginTable {
+    border: 0px;
+    padding: 0px;
+    width: 100%;
+    border-spacing: 0px;
+    border-collapse: collapse;
+    background-color: #FFFFFF;
+}
+
+/* table class for footer */
+table.footerTable {
+    margin-left: auto;
+    margin-right:auto;
+    border: 0px;
+    padding: 0px;
+    border-spacing: 0px;
+    border-collapse: collapse;
+}
+
+/* span class */
+.columnHeader {
+    font-family: Calibri, Verdana, Arial;
+    font-size: medium;
+    font-weight: bold;
+    color: #000000;
+}
+
+/* div panel for login and register new user */
+div.loginPanel {
+    margin-left:20px;
+    background-color: #DDDDDD;
+    width: 200px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+/* div panel for welcome page */
+div.welcomePanel {
+    margin-left:20px;
+    background-color: #DDDDDD;
+    width: 760px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+/* div panel for error panel */
+div.errorPanel {
+    margin-left:20px;
+    background-color: #FFDDDD;
+    border:1px solid gray;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+/* div panel for info panel */
+div.infoPanel {
+    margin-left:20px;
+    background-color: #DDFFDD;
+    border:1px solid gray;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+/* div panel for 20 pix vertical separation */
+div.fillerPanel20px {
+    height: 20px;
+}
+
+/* div panel for 40 pix vertical separation */
+div.fillerPanel40px {
+    height: 40px;
+}
+
+/* span class - regular input label */
+.inputLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-size: small;
+}
+
+/* span class - bold input label*/
+.boldLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-weight: bold;
+    font-size: small;
+}
+
+/* span class - bold red input label*/
+.boldRedLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-weight: bold;
+    font-size: small;
+    color: #FF0000
+}
+
+/* span class - loading label (gray, large) */
+.loadingLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-size: 24pt;
+    color: #777777;
+}
+
+/* span class - red label - TODO: Check if necessary? */
+.redLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-size: medium;
+    color: #DD0000;
+}
+
+/* span class - red label bold - TODO: Check if necessary? */
+.redLabelBold {
+    font-family: Calibri, Verdana, Arial;
+    font-size: small;
+    color: #DD0000;
+    font-weight: bold;
+}
+
+/* span class - required field asterisk, perhaps */
+.requiredField {
+    color: #008800;
+    font-family: Calibri, Verdana, Arial;
+    font-size: x-small;
+    font-weight: bold;
+    vertical-align: text-top;
+}
+
+/* table data specifier, for labels */
+td.commonLabel {
+    text-align: right;
+    height: 30px;
+    font-face: Calibri, Verdana, Arial;
+    font-size: medium;
+}
+
+/* table data specifier, for input elements */
+td.commonInput {
+    text-align: left;
+    height: 30px
+}
+
+/* table label specifier, for centering */
+td.commonLabelCenter {
+    font-face: Calibri, Verdana, Arial;
+    text-align: center;
+    height: 30px;
+    font-size: medium;
+}
+
+/* Forever links are initially blue, underlined */
+a.forever:link {
+    color: blue;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Regular links are initially blue, underlined */
+a.regular:link {
+    color: blue;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* When a click occurs, change the color to green for all anchors */
+a.internal {
+    color: green;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Hovering over all links, color them purple */
+a:hover {
+    color: purple;
+    background: transparent;
+    cursor: pointer;
+}
+
+/* Forever links are still always blue, underlined */
+a.forever:visited {
+    color: blue;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* Forever links are initially blue, underlined */
+a.foreverBlack:link {
+    color: black;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+/* Forever links are initially blue, underlined */
+a.foreverBlack:visited {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Visited links for regular ones change to red */
+a.regular:visited {
+    color: #880000;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* span class - bold input label*/
+.boldBlueLabel {
+    font-family: Calibri, Verdana, Arial;
+    font-weight: bold;
+    font-size: medium;
+    color: #0000FF;
+}
+
+textarea.regularTA {
+   font-family: Calibri, Verdana, Arial;
+   font-size: medium;
+   color: #000000
+}
+
+/* div panel for 200 pix vertical separation */
+div.fillerPanel200px {
+    height: 200px;
+}
