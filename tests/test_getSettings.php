@@ -58,16 +58,16 @@ ob_start();
 session_start();
 
 // Break out of test if key not present in incoming request
-if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$")) {    // $$ TEST_QUERY_KEY $$
+if ((!isset($_GET["s"])) || ($_GET["s"] !== "$$TEST_QUERY_KEY$$")) {      // $$ TEST_QUERY_KEY $$
     exit();
-}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$"))    // $$ TEST_QUERY_KEY $$
-
+}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] !== "$$TEST_QUERY_KEY$$"))
+	
 // First off, check if the application is being used by someone not typing the actual server name in the header
-if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
+if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
-    header("Location: https://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
+    header("Location: http://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
     exit();
-}   //  End if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier)
+}   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 	
 // ********* Call Web Service to get settings ********** //
 $ch = curl_init();
