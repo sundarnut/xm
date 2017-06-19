@@ -34,13 +34,14 @@
 //     None
 //
 // Stored Procedures:
-//    getEnabledSettings - get list of all enabled settings in DB
+//    getSettings - get list of all settings in DB
 //
 // JavaScript functions:
 //    None
 //
 // Revisions:
 //     1. Sundar Krishnamurthy          sundar_k@hotmail.com       06/10/2017      Initial file created.
+//     2. Sundar Krishnamurthy          sundar_k@hotmail.com       06/18/2017      Final updates, including UTF-8 encoding, application/json header
 
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
@@ -134,7 +135,8 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
     $outputJson["response"] = $settingsJson;
 
     // Send result back
-    print(json_encode($outputJson));
+	header('Content-Type: application/json; charset=utf-8');
+    print(utf8_encode(json_encode($outputJson)));
 }   //  End if ((isset($_SERVER["HTTP_APIKEY"])) &&
 
 ob_end_flush();
