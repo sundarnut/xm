@@ -34,16 +34,17 @@
 //     ApiKey: Must contain magic value for this service to be employed
 //
 // Session Variables:
-//     None
+//     xmSession - stored in memcache
 //
 // Stored Procedures:
-//     logUserAccess - log the user access parameters
+//    logUserAccess - log the user access parameters
 //
 // JavaScript functions:
 //    None
 //
 // Revisions:
 //     1. Sundar Krishnamurthy          sundar_k@hotmail.com       06/10/2017      Initial file created.
+//     2. Sundar Krishnamurthy          sundar_k@hotmail.com       06/18/2017      Update to include utf-8 and content-type
 
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
@@ -64,20 +65,20 @@ ob_start();
 session_start();
 
 // First off, check if the application is being used by someone not typing the actual server name in the header
-if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
+if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
-    header("Location: http://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
+    header("Location: https://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
     exit();
-}   //  End if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier)
+}   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 
 // Authorized client that is asking for settings for a user landing on the page for the first time
 if ((isset($_SERVER["HTTP_APIKEY"])) &&
     ($_SERVER["HTTP_APIKEY"] === "$$API_KEY$$")) {             // $$ API_KEY $$
 
-    $postBody = urldecode(file_get_contents("php://input"));
+    $postBody = utf8_decode(urldecode(file_get_contents("php://input")));
 
     // We found a valid body to process
-    if ($postBody != "") {
+    if ($postBody !== "") {
 
         $logId        = 0;
         $errorCode    = 0;
@@ -115,11 +116,11 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
                 $useReferer    = "null";
                 $useSessionKey = "null";
 
-                if ($ipAddress != "") {
+                if ($ipAddress !== "") {
                     $useIpAddress = inet_ptod($ipAddress);
-                }   //  End if ($ipAddress != "")
+                }   //  End if ($ipAddress !== "")
 
-                if ($userAgent != "") {
+                if ($userAgent !== "") {
                     $useUserAgent = mysqli_real_escape_string($con, $userAgent);
 
                     if (strlen($useUserAgent) > 256) {
@@ -127,9 +128,9 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
                     }   //  End if (strlen($useUserAgent) > 256)
 
                     $useUserAgent = "'" . $useUserAgent . "'";
-                }   //  End if ($userAgent != "")
+                }   //  End if ($userAgent !== "")
 
-                if ($referer != "") {
+                if ($referer !== "") {
                     $useReferer = mysqli_real_escape_string($con, $referer);
 
                     if (strlen($useReferer) > 256) {
@@ -137,9 +138,9 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
                     }   //  End if (strlen($useReferer) > 256)
 
                     $useReferer = "'" . $useReferer . "'";
-                }   //  End if ($referer != "")
+                }   //  End if ($referer !== "")
 
-                if ($sessionKey != "") {
+                if ($sessionKey !== "") {
                     $useSessionKey = mysqli_real_escape_string($con, $sessionKey);
 
                     if (strlen($useSessionKey) > 32) {
@@ -147,7 +148,7 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
                     }   //  End if (strlen($useSessionKey) > 32)
 
                     $useSessionKey = "'" . $useSessionKey . "'";
-                }   //  End if ($sessionKey != "")
+                }   //  End if ($sessionKey !== "")
 
                 // This is the query we will run to insert user metadata one time into the DB
                 $query = "call logUserAccess($useIpAddress,$useUserAgent,$useReferer,$useSessionKey);";
@@ -186,9 +187,10 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
         $outputJson["response"] = $logJson;
 
         // Send result back
-        print(json_encode($outputJson));
+        header('Content-Type: application/json; charset=utf-8');
+        print(utf8_encode(json_encode($outputJson)));
 
-    }   //  End if ($postBody != "")
+    }   //  End if ($postBody !== "")
 }   //  End if ((isset($_SERVER["HTTP_APIKEY"])) &&
 
 ob_end_flush();
