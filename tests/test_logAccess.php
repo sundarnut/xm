@@ -44,6 +44,7 @@
 //
 // Revisions:
 //    1. Sundar Krishnamurthy          sundar_k@hotmail.com       06/10/2017      Initial file created.
+//    2. Sundar Krishnamurthy          sundar_k@hotmail.com       06/18/2017      Hopefully, final set of updates.
 
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
@@ -95,7 +96,7 @@ $ch = curl_init();
 
 curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "services/logAccess.php");
 curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-    'ApiKey: $$API_KEY$$   // $$ API_KEY $$
+    'ApiKey: $$API_KEY$$',           // $$ API_KEY $$
     'Content-Type: application/x-www-form-urlencoded',
     'Accept: application/json'));
 
@@ -109,8 +110,6 @@ curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 // if (isset($_COOKIE["PHPSESSID"])) {
 //     curl_setopt($ch, CURLOPT_COOKIE, "PHPSESSID=" . $_COOKIE["PHPSESSID"]);
 // }   //  End if (isset($_COOKIE["PHPSESSID"]))
-
-// curl_setopt($ch, CURLOPT_COOKIE, 'PHPSESSID=' . $_COOKIE['PHPSESSID']);
 
 session_write_close();
 
