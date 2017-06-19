@@ -61,19 +61,19 @@ ob_start();
 session_start();
 
 // Break out of test if key not present in incoming request
-if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$")) {     // $$ TEST_QUERY_KEY $$
+if ((!isset($_GET["s"])) || ($_GET["s"] !== "$$TEST_QUERY_KEY$$")) {     // $$ TEST_QUERY_KEY $$
     exit();
-}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] != "$$TEST_QUERY_KEY$$"))      // $$ TEST_QUERY_KEY $$
-	
+}   //  End if ((!isset($_GET["s"])) || ($_GET["s"] !== "$$TEST_QUERY_KEY$$"))      // $$ TEST_QUERY_KEY $$
+
 // First off, check if the application is being used by someone not typing the actual server name in the header
-if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
+if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
     header("Location: https://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
     exit();
-}   //  End if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier)
+}   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 	
 // ********* Call Web Service to get settings ********** //
-$ch = curl_init();
+$ch                     = curl_init();
 
 $elements               = array();
 $elements["ipAddress"]  = $_SERVER["REMOTE_ADDR"];
@@ -88,20 +88,20 @@ if (key_exists("HTTP_REFERER", $_SERVER)) {
 $elements["referer"]    = $referer;
 $elements["sessionKey"] = "01234567890123456789012345678901";
 
-$inputJson            = array();
-$inputJson["request"] = $elements;
+$inputJson              = array();
+$inputJson["request"]   = $elements;
 
 $ch = curl_init();
 
 curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "services/logAccess.php");
 curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-	  'ApiKey: $$API_KEY$$',           // $$ API_KEY $$
+    'ApiKey: $$API_KEY$$   // $$ API_KEY $$
     'Content-Type: application/x-www-form-urlencoded',
     'Accept: application/json'));
 
 curl_setopt($ch, CURLOPT_SSLVERSION, 6);
 curl_setopt($ch, CURLOPT_POST, 1);
-curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode(json_encode($inputJson)));
+curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode(utf8_encode(json_encode($inputJson))));
 
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
@@ -110,8 +110,6 @@ curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 //     curl_setopt($ch, CURLOPT_COOKIE, "PHPSESSID=" . $_COOKIE["PHPSESSID"]);
 // }   //  End if (isset($_COOKIE["PHPSESSID"]))
 
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 // curl_setopt($ch, CURLOPT_COOKIE, 'PHPSESSID=' . $_COOKIE['PHPSESSID']);
 
 session_write_close();
@@ -126,8 +124,8 @@ if ($curlyBracePosition > 0) {
     $response = substr($response, $curlyBracePosition);
 }   //  End if ($curlyBracePosition > 0)
 
-$logIdJson = json_decode($response, true);
-$logResponse = $logIdJson["response"];
+$logIdJson    = json_decode(utf8_decode($response), true);
+$logResponse  = $logIdJson["response"];
 
 print_r($logResponse);
 
