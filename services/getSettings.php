@@ -59,11 +59,11 @@ ob_start();
 session_start();
 
 // First off, check if the application is being used by someone not typing the actual server name in the header
-if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier) {
+if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     // Transfer user to same page, served over HTTPS and full-domain name
     header("Location: https://" . $global_siteCookieQualifier . $_SERVER["REQUEST_URI"]);
     exit();
-}   //  End if (strtolower($_SERVER["HTTP_HOST"]) != $global_siteCookieQualifier)
+}   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 
 // Authorized client that is asking for settings for a user landing on the page for the first time
 if ((isset($_SERVER["HTTP_APIKEY"])) &&
@@ -135,7 +135,7 @@ if ((isset($_SERVER["HTTP_APIKEY"])) &&
     $outputJson["response"] = $settingsJson;
 
     // Send result back
-	header('Content-Type: application/json; charset=utf-8');
+    header('Content-Type: application/json; charset=utf-8');
     print(utf8_encode(json_encode($outputJson)));
 }   //  End if ((isset($_SERVER["HTTP_APIKEY"])) &&
 
