@@ -64,7 +64,7 @@ if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     exit();
 }   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 
-// Authorized client that is asking for settings for a user landing on the page for the first time
+// We need a session variable that may be saved to this table, look up with sessionID and key
 if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     (isset($_SERVER["HTTP_APIKEY"])) &&
     ($_SERVER["HTTP_APIKEY"] === "$$API_KEY$$") &&                     // $$ API_KEY $$
