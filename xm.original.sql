@@ -28,11 +28,16 @@
 --   22.  P13. logUserAccess stored procedure - log the access attempt made by a client/user
 --   23.  P14. updateTimeZone stored procedure - update the timezone record for the corresponding session key
 --   24.  P15. updateUser stored procedure - update user data
---   25.  P17. addFirstRealUser stored procedure - add first real user for this application
+--   25.  P16. addFirstRealUser stored procedure - add first real user for this application
+--   26.  P17. populateSecretQuestionDataForFirstRealUser stored procedure - add data to corroborate first real user for this application
+--   27.  T10. sessionData table - to store session data in cases where Apache sessions fail us
+--   28.  P18. getSession stored procedure - to fetch data for a session variable previously stored
+--   29.  P19. setSession stored procedure - to save data into the sessionData table for a name-value pair
 
 --
 -- Revisions:
 --      1. Sundar Krishnamurthy         sundar_k@hotmail.com               06/10/2017       Initial file created.
+--      2. Sundar Krishnamurthy         sundar_k@hotmail.com               10/04/2017       Added sessionData table, comments
 
 
 -- Very, very, very bad things happen if you uncomment this line below. Do at your peril, you have been warned!
@@ -1192,7 +1197,7 @@ drop procedure if exists addFirstRealUser;
 delimiter //
 
 -- First user has to be injected manually
---   25.  P17. addFirstRealUser stored procedure - add first real user for this application
+--   25.  P16. addFirstRealUser stored procedure - add first real user for this application
 create procedure addFirstRealUser ()
 begin
     declare l_userId                          int ( 10 ) unsigned;
@@ -1234,7 +1239,7 @@ drop procedure if exists populateSecretQuestionDataForFirstRealUser;
 
 delimiter //
 
---   25.  P17. addFirstRealUser stored procedure - add first real user for this application
+--   26.  P17. addFirstRealUser stored procedure - add first real user for this application
 create procedure populateSecretQuestionDataForFirstRealUser()
 begin
 
@@ -1260,3 +1265,123 @@ delimiter ;
 call populateSecretQuestionDataForFirstRealUser();
 
 drop procedure populateSecretQuestionDataForFirstRealUser;
+
+-- drop table if exists sessionData;
+
+--   27.  T10. sessionData table - to store session data in cases where Apache sessions fail us
+create table sessionData (
+    id                                        int ( 10 ) unsigned not null auto_increment,
+    sessionId                                 varchar( 32 ) not null,
+    sessionKey                                varchar( 32 ) not null,
+    value                                     varchar( 256 ) default null,
+    intValue                                  int ( 10 ) default null,
+    created                                   datetime not null,
+    lastUpdate                                datetime not null,
+    key id ( id ),
+    unique index ix_sessionId_sessionKey ( sessionId, sessionKey )
+) engine=innodb default character set=utf8;
+
+drop procedure if exists getSession;
+
+delimiter //
+
+--   28.  P18. getSession stored procedure - to fetch data for a session variable previously stored
+create procedure getSession(
+   in p_sessionId                            varchar( 32 ),
+   in p_sessionKey                           varchar( 32 ),
+   in p_deleteFlag                           tinyint ( 1 ) unsigned
+)
+begin
+
+   declare l_id                              int ( 10 ) unsigned;
+   declare l_value                           varchar( 255 );
+   declare l_intValue                        int ( 10 );
+
+   set l_id = null;
+
+   select
+       id,
+       value,
+       intValue
+   into
+       l_id,
+       l_value,
+       l_intValue
+   from
+       sessionData
+   where
+       sessionId = p_sessionId
+       and sessionKey = p_sessionKey;
+
+   if l_id is not null and p_deleteFlag = 1 then
+
+       delete from sessionData
+       where id = l_id;
+   end if;
+
+   select
+       l_id as id,
+       l_value as value,
+       l_intValue as intValue;
+
+end //
+
+delimiter ;
+
+drop procedure if exists setSession;
+
+delimiter //
+
+--   29.  P19. setSession stored procedure - to save data into the sessionData table for a name-value pair
+create procedure setSession(
+   in p_sessionId                            varchar( 32 ),
+   in p_sessionKey                           varchar( 32 ),
+   in p_value                                varchar( 256 ),
+   in p_intValue                             int ( 10 )
+)
+begin
+
+   declare l_id                              int ( 10 ) unsigned;
+   set l_id = null;
+
+   select id into l_id
+   from sessionData
+   where sessionId = p_sessionId
+   and sessionKey = p_sessionKey;
+
+   if l_id is null then
+
+       insert sessionData(
+           sessionId,
+           sessionKey,
+           value,
+           intValue,
+           created,
+           lastUpdate
+       ) values (
+           p_sessionId,
+           p_sessionKey,
+           p_value,
+           p_intValue,
+           utc_timestamp(),
+           utc_timestamp()
+       );
+
+       select last_insert_id() into l_id;
+
+   else
+
+     update sessionData
+     set value = p_value,
+     intValue = p_intValue,
+     lastUpdate = utc_timestamp()
+     where
+     id = l_id;
+
+   end if;
+
+   select l_id as id;
+
+end //
+
+delimiter ;
