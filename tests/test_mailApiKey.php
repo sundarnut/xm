@@ -25,7 +25,6 @@
 // Revisions:
 //    1. Sundar Krishnamurthy          sundar_k@hotmail.com       10/05/2017      Initial file created.
 
-
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
 ini_set('session.session.use_only_cookies', TRUE);  // No session fixation
 ini_set('session.cookie_lifetime', FALSE);          // Avoid XSS, CSRF, Clickjacking
@@ -54,8 +53,7 @@ if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
 
 // STEP 1 - Positive use-case
 // ********* Call Web Service with valid MailApiKey, verify active=1 ********** //
-$ch = curl_init();
-
+$ch                      = curl_init();
 $elements                = array();
 $elements["mailApiKey"]  = "$$VALID_MAIL_API_KEY$$";               // $$ VALID_MAIL_API_KEY $$
 
@@ -85,25 +83,24 @@ $response = curl_exec($ch);
 
 curl_close($ch);
 
-$checkResponse = json_decode(utf8_decode($response), true);
-$errorCode     = intval($checkResponse["errorCode"]);
-$results["Test 1"]    = "Failure";
+$checkResponse     = json_decode(utf8_decode($response), true);
+$errorCode         = intval($checkResponse["errorCode"]);
+$results["Test 1"] = "Failure";
 
 if ($errorCode === 0) {
-    $active    = intval($checkResponse["active"]);
+    $active = intval($checkResponse["active"]);
 
     if ($active === 1) {
        $results["Test 1"] = "Success";
     }  //  End if ($active === 1)
 } else {
-    $results["Test 1 Message"]    = $checkResponse["error"];
+    $results["Test 1 Message"] = $checkResponse["error"];
 }   //  End if ($errorCode === 0)
 
 
 // STEP 2 - Negative use-case
 // ********* Call Web Service with invalid MailApiKey, verify active=0 ********** //
 $ch                      = curl_init();
-
 $elements                = array();
 $elements["mailApiKey"]  = "$$INVALID_MAIL_API_KEY$$";         // $$ INVALID_MAIL_API_KEY $$
 
@@ -130,13 +127,12 @@ $response = curl_exec($ch);
 
 curl_close($ch);
 
-$checkResponse = json_decode(utf8_decode($response), true);
-
-$errorCode = intval($checkResponse["errorCode"]);
+$checkResponse     = json_decode(utf8_decode($response), true);
+$errorCode         = intval($checkResponse["errorCode"]);
 $results["Test 2"] = "Failure";
 
 if ($errorCode === 0) {
-    $active    = intval($checkResponse["active"]);
+    $active = intval($checkResponse["active"]);
 
     if ($active === 0) {
        $results["Test 2"] = "Success";
