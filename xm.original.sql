@@ -33,6 +33,9 @@
 --   27.  T10. sessionData table - to store session data in cases where Apache sessions fail us
 --   28.  P18. getSession stored procedure - to fetch data for a session variable previously stored
 --   29.  P19. setSession stored procedure - to save data into the sessionData table for a name-value pair
+--   30.  T11. mailApiKeys table to store API keys that anyone can employ to send email
+--   31.  P20. populateApiKey stored procedure to add the first API key we will employ to call the web service
+--   32.  P21. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
 
 --
 -- Revisions:
@@ -1385,3 +1388,76 @@ begin
 end //
 
 delimiter ;
+
+-- drop table if exists mailApiKeys;
+
+--   30.  T11. mailApiKeys table to store API keys that anyone can employ to send email
+create table if not exists mailApiKeys (
+    apiId                                     int ( 10 ) unsigned              not null auto_increment,
+    apiKey                                    varchar( 32 )                    not null,
+    active                                    tinyint ( 1 ) unsigned           not null default 0,
+    created                                   datetime                         not null,
+    lastUpdate                                datetime                         not null,
+    key ( apiId ),
+    unique index i_apiKey ( apiKey )
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
+
+drop procedure if exists populateApiKey;
+
+delimiter //
+
+--   31.  P20. populateApiKey stored procedure to add the first API key we will employ to call the web service
+create procedure populateApiKey()
+begin
+
+    declare l_apiCount                        int ( 10 ) unsigned;
+    set l_apiCount = 0;
+
+    select count(*) into l_apiCount
+    from mailApiKeys;
+
+    if l_apiCount = 0 then
+        
+        insert mailApiKeys (
+            apiKey, 
+            active,
+            created,
+            lastUpdate
+        ) values (
+            '$$API_KEY$$',           -- $$ API_KEY $$
+            1,
+            utc_timestamp(),
+            utc_timestamp()
+        );
+
+    end if;
+
+end //
+
+delimiter ;
+
+call populateApiKey();
+
+drop procedure populateApiKey;
+
+drop procedure if exists checkMailApiKey;
+
+delimiter //
+
+--   32.  P21. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
+create procedure checkMailApiKey(
+    in p_apiKey                               varchar( 32 )
+)
+begin
+
+    select
+        active
+    from
+        mailApiKeys
+    where
+        apiKey = p_apiKey;
+
+end //
+
+delimiter ;
+
