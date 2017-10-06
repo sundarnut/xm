@@ -128,18 +128,18 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                 mysqli_close($con);
             }   //  End if (!$con)
 
-            $sessionJson              = array();
-            $sessionJson["errorCode"] = $errorCode;
+            $responseJson              = array();
+            $responseJson["errorCode"] = $errorCode;
 
             if ($errorMessage === null) {
-                $sessionJson["active"] = $active;
+                $responseJson["active"] = $active;
             } else {
-                $sessionJson["error"] = $errorMessage;
+                $responseJson["error"] = $errorMessage;
             }   //  End if ($errorMessage === null)
 
             // Send result back
             header('Content-Type: application/json; charset=utf-8');
-            print(utf8_encode(json_encode($sessionJson)));
+            print(utf8_encode(json_encode($responseJson)));
 
         }   //  End if (strlen($mailApiKey) === 32) {
     }   //  End if ($postBody !== "")
