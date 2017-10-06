@@ -11,6 +11,9 @@
 //   {"errorCode":0,
 //    "active":1}
 //
+//   {"errorCode":1,
+//    "error":"Long exception message"}
+//
 // Functions:
 //    None
 //
@@ -18,20 +21,20 @@
 //    None
 //
 // Custom Headers:
-//     ApiKey: Must contain magic value for this service to be employed
+//    ApiKey: Must contain magic value for this service to be employed
 //
 // Session Variables:
-//     None
+//    None
 //
 // Stored Procedures:
-//    checkMailApiKey - check if the furnished Mail API key is active in the DB
+//   checkMailApiKey - check if the furnished Mail API key is active in the DB
 //
 // JavaScript functions:
-//    None
+//   None
 //
 // Revisions:
 //     1. Sundar Krishnamurthy          sundar_k@hotmail.com       10/05/2017      Initial file created.
-
+//     2. Sundar Krishnamurthy          sundar_k@hotmail.com       10/06/2017      Initial file created.
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
 ini_set('session.session.use_only_cookies', TRUE);  // No session fixation
@@ -81,7 +84,6 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
             // Unable to connect, display error message
             if (!$con) {
-
                 $errorCode    = 1;
                 $errorMessage = "Could not connect to database server.";
             } else {
@@ -136,7 +138,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             }   //  End if ($errorMessage === null)
 
             // Send result back
-//            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Type: application/json; charset=utf-8');
             print(utf8_encode(json_encode($sessionJson)));
 
         }   //  End if (strlen($mailApiKey) === 32) {
