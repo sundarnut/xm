@@ -27,7 +27,7 @@
 //
 // Output JSON:
 //   {"errorCode":0,
-//    "id":1}
+//    "mailid":1}
 //
 // Output JSON:
 //   {"errorCode":1,
@@ -79,7 +79,7 @@ if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
 // Authorized client that is asking for settings for a user landing on the page for the first time
 if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     (isset($_SERVER["HTTP_APIKEY"])) &&
-    ($_SERVER["HTTP_APIKEY"] === "ecab6cac7d61406cae0a704253b944dc") &&                     // $$ API_KEY $$
+    ($_SERVER["HTTP_APIKEY"] === "$$API_KEY$$") &&                     // $$ API_KEY $$
     ($_SERVER["SERVER_ADDR"] === $_SERVER["REMOTE_ADDR"])) {
 
     $postBody = utf8_decode(urldecode(file_get_contents("php://input")));
