@@ -36,6 +36,16 @@
 --   30.  T11. mailApiKeys table to store API keys that anyone can employ to send email
 --   31.  P20. populateApiKey stored procedure to add the first API key we will employ to call the web service
 --   32.  P21. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
+--   33.  T12. mails table to store emails that need to be dispatched
+--   34.  T13. mailAttachments table to store attachment data for certain emails
+--   35.  T14. mailsSent table to log all the emails we successfully dispatch via scheduling
+--   36.  P22. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
+--   37.  P23. addMailAttachment stored procedure to add one attachment to a previously saved email message
+--   38.  P24. markEmailAsReady stored procedure to mark email as ready to send
+--   39.  P25. getEmailToSend stored procedure to get the next email to dispatch, hasAttachments would tell you if you need to call getAttachmentsForEmail
+--   40.  P26. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
+--   41.  P27. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
+--   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
 
 --
 -- Revisions:
@@ -157,13 +167,13 @@ begin
         -- Password for System Agent is 72917d59f97d4ee48f82e20ac4e07283 (cannot log in :))
         insert users (username, firstName, lastName, firstLastName, lastFirstName, email, salt,
                       password, userKey, active, status, notificationMask, created, lastUpdate)
-        values ('root', 'System Agent', null, 'System Agent', 'System Agent', 'brahma@passion8cakes.com', '2c22e1a5fe294d6db6e24d018b149bc7',
+        values ('root', 'System Agent', null, 'System Agent', 'System Agent', 'brahma@somesite.com', '2c22e1a5fe294d6db6e24d018b149bc7',
                 '628ec4efc1298daadf5d4e5084ab8665c8bc72e41d10527c0247a1b578a9c544', 'd438964f23c14bea9ea94bcfeebe5bb9',
                  0, 0, 0, utc_timestamp(), utc_timestamp());
 
         insert activityLogs(message, userId, created) values ('{"NewUser":{"Message":"Brahma is born"}}', 1, utc_timestamp());
 
-        insert emailUserLog (userId, email, created) values (1, 'brahma@passion8cakes.com', utc_timestamp());
+        insert emailUserLog (userId, email, created) values (1, 'brahma@somesite.com', utc_timestamp());
 
     end if;
 
@@ -238,6 +248,8 @@ begin
             values('What is the city you\'ve visited, that you loved the most', 1, 10, utc_timestamp());
         insert secretQuestions(question, enabled, sequence, created)
             values('What is the name of the first elementary school that you attended', 1, 11, utc_timestamp());
+        insert secretQuestions(question, enabled, sequence, created)
+            values('What is your favorite security question', 1, 12, utc_timestamp());
     end if;
 
 end //
@@ -1395,6 +1407,7 @@ delimiter ;
 create table if not exists mailApiKeys (
     apiId                                     int ( 10 ) unsigned              not null auto_increment,
     apiKey                                    varchar( 32 )                    not null,
+    email                                     varchar( 128 )                   not null,
     active                                    tinyint ( 1 ) unsigned           not null default 0,
     created                                   datetime                         not null,
     lastUpdate                                datetime                         not null,
@@ -1419,12 +1432,14 @@ begin
     if l_apiCount = 0 then
         
         insert mailApiKeys (
-            apiKey, 
+            apiKey,
+            email,
             active,
             created,
             lastUpdate
         ) values (
             '$$API_KEY$$',           -- $$ API_KEY $$
+            '$$ADMIN_EMAIL_ADDRESS$$',            -- $$ ADMIN_EMAIL_ADDRESS $$
             1,
             utc_timestamp(),
             utc_timestamp()
@@ -1451,11 +1466,367 @@ create procedure checkMailApiKey(
 begin
 
     select
-        active
+        active,
+        email
     from
         mailApiKeys
     where
         apiKey = p_apiKey;
+
+end //
+
+delimiter ;
+
+-- drop table if exists mails;
+
+--   33.  T12. mails table to store emails that need to be dispatched
+create table if not exists mails (
+    mailId                                    int ( 10 ) unsigned              not null auto_increment,
+    sender                                    varchar( 64 )                    default null,
+    senderEmail                               varchar( 256 )                   default null,
+    recipients                                varchar( 4096 )                  not null,
+    ccRecipients                              varchar( 4096 )                  default null,
+    bccRecipients                             varchar( 4096 )                  default null,
+    subject                                   varchar( 255 )                   not null,
+    subjectPrefix                             varchar( 64 )                    default null,
+    body                                      text                             default null,
+    ready                                     tinyint ( 1 ) unsigned           not null default 0,
+    hasAttachments                            tinyint ( 1 ) unsigned           not null default 0,
+    importance                                tinyint ( 1 ) unsigned           not null default 0,
+    timestamp                                 datetime                         default null,
+    created                                   datetime                         not null,
+    key ( mailId )
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
+
+-- drop table if exists mailAttachments;
+
+--   34.  T13. mailAttachments table to store attachment data for certain emails
+create table if not exists mailAttachments (
+    mailAttachmentId                         int ( 10 ) unsigned              not null auto_increment,
+    mailId                                   int ( 10 ) unsigned              not null,
+    filename                                 varchar( 1024 )                  not null,
+    filesize                                 int ( 10 ) unsigned              not null,
+    attachment                               longblob                         not null,
+    created                                  datetime                         not null,
+    key ( mailAttachmentId )
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
+
+-- drop table if exists mailsSent;
+
+--   35.  T14. mailsSent table to log all the emails we successfully dispatch via scheduling
+create table if not exists mailsSent (
+    logId                                     int ( 10 ) unsigned              not null auto_increment,
+    message                                   text not null,
+    timestamp                                 datetime default null,
+    key ( logId )
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
+
+drop procedure if exists addEmail;
+
+delimiter //
+
+--   36.  P22. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
+create procedure addEmail (
+    in p_apiKey                              varchar( 32 ),
+    in p_sender                              varchar( 64 ),
+    in p_senderEmail                         varchar( 256 ),
+    in p_recipients                          varchar( 4096 ),
+    in p_ccRecipients                        varchar( 4096 ),
+    in p_bccRecipients                       varchar( 4096 ),
+    in p_subject                             varchar( 255 ),
+    in p_subjectPrefix                       varchar( 64 ),
+    in p_body                                text,
+    in p_markMailAsReady                     tinyint ( 1 ) unsigned,
+    in p_hasAttachments                      tinyint ( 1 ) unsigned,
+    in p_importance                          tinyint ( 1 ) unsigned,
+    in p_timestamp                           datetime
+)
+begin
+
+    declare l_apiId                          int ( 10 ) unsigned;
+    set l_apiId = null;
+
+    select apiId into l_apiId
+    from mailApiKeys
+    where apiKey = p_apiKey
+    and active = 1;
+
+    if l_apiId is not null then
+
+       insert mails (
+           sender,
+            senderEmail,
+            recipients,
+            ccRecipients,
+            bccRecipients,
+            subject,
+            subjectPrefix,
+            body,
+            ready,
+            hasAttachments,
+            importance,
+            timestamp,
+            created
+        ) values (
+            p_sender,
+            p_senderEmail,
+            p_recipients,
+            p_ccRecipients,
+            p_bccRecipients,
+            p_subject,
+            p_subjectPrefix,
+            p_body,
+            p_markMailAsReady,
+            p_hasAttachments,
+            p_importance,
+            p_timestamp,
+            utc_timestamp()
+        );
+
+        select last_insert_id() as mailId;
+
+    end if;
+end //
+
+delimiter ;
+
+drop procedure if exists addMailAttachment;
+
+delimiter //
+
+--   37.  P23. addMailAttachment stored procedure to add one attachment to a previously saved email message
+create procedure addMailAttachment (
+    in p_mailId                              int ( 10 ) unsigned,
+    in p_filename                            varchar ( 1024 ),
+    in p_filesize                            int ( 10 ) unsigned,
+    in p_attachment                          longblob
+)
+begin
+
+    declare l_mailId             int ( 10 ) unsigned;
+    declare l_hasAttachments     bit;
+
+    set l_mailId = null;
+    set l_hasAttachments = null;
+
+    select
+        hasAttachments, mailId
+    into
+        l_hasAttachments, l_mailId
+    from
+        mails
+    where
+        mailId = p_mailId;
+
+    if l_hasAttachments is not null and l_hasAttachments = 0 then
+        update
+            mails
+        set
+            hasAttachments = 1
+        where
+            mailId = p_mailId;
+    end if;
+
+    if l_mailId is not null then
+        insert mailAttachments (
+            mailId,
+            filename,
+            filesize,
+            attachment,
+            created
+        ) values (
+            p_mailId,
+            p_filename,
+            p_filesize,
+            p_attachment,
+            utc_timestamp()
+        );
+
+        select last_insert_id() as mailAttachmentId;
+    else
+        select null as mailAttachmentId;
+    end if;
+end //
+
+delimiter ;
+
+drop procedure if exists markEmailAsReady;
+
+delimiter //
+
+--   38.  P24. markEmailAsReady stored procedure to mark email as ready to send
+create procedure markEmailAsReady (
+    in p_mailId                              int ( 10 ) unsigned
+)
+begin
+
+    declare l_ready bit;
+    set l_ready = null;
+
+    select
+        ready into l_ready
+    from
+        mails
+    where
+        mailId = p_mailId;
+
+    if l_ready is not null and l_ready = 0 then
+        update
+            mails
+        set
+            ready = 1
+        where
+            mailId = p_mailId;
+
+    end if;
+
+    select p_mailId as mailId;
+end //
+
+delimiter ;
+
+drop procedure if exists getEmailToSend;
+
+delimiter //
+
+--   39.  P25. getEmailToSend stored procedure to get the next email to dispatch, hasAttachments would tell you if you need to call getAttachmentsForEmail
+create procedure getEmailToSend (
+    in p_timestamp                            datetime
+)
+begin
+
+    select
+        mailId,
+        sender,
+        senderEmail,
+        recipients,
+        subject,
+        subjectPrefix,
+        ccRecipients,
+        bccRecipients,
+        body,
+        hasAttachments,
+        importance,
+        created
+    from
+        mails
+    where
+            ready = 1
+        and
+            ((timestamp is null) or (timestamp < p_timestamp))
+    order by
+        mailId
+    limit 1;
+end //
+
+delimiter ;
+
+drop procedure if exists getAttachmentsForEmail;
+
+delimiter //
+
+--   40.  P26. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
+create procedure getAttachmentsForEmail (
+    in p_mailId                              int ( 10 ) unsigned
+)
+begin
+
+    select
+        mailAttachmentId,
+        mailId,
+        filename,
+        filesize,
+        attachment,
+        created
+    from
+        mailAttachments
+    where
+        mailId = p_mailId
+    order by
+        mailAttachmentId;
+end //
+
+delimiter ;
+
+drop procedure if exists deleteEmail;
+
+delimiter //
+
+--   41.  P27. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
+create procedure deleteEmail (
+    in p_mailId                               int ( 10 ) unsigned,
+    in p_ownerEmail                           varchar( 128 )
+)
+begin
+
+    declare l_recipients                      varchar( 4096 );
+    declare l_subject                         varchar( 255 );
+    declare l_message                         text;
+ 
+    set l_subject = null;
+
+    select subject, recipients into
+        l_subject, l_recipients
+    from
+        mails
+    where
+        mailId = p_mailId;
+
+    if l_subject is not null then
+
+        set l_subject = replace(l_subject, '"', '\\"');
+
+        set l_message = concat('{"id":', p_mailId, ',"timer":true');
+        set l_message = concat(l_message, ',"from":"', p_ownerEmail, '","to":"', l_recipients);
+        set l_message = concat(l_message, '","subject":"', l_subject, '"}');
+
+        -- Log this email that we dispatched
+        insert mailsSent (
+            message,
+            timestamp
+        ) values (
+            l_message,
+            utc_timestamp()
+        );
+
+        -- This is moot, but still delete attachments prior to deleting emails
+        delete
+        from
+            mailAttachments
+        where
+            mailId = p_mailId;
+
+        delete
+        from
+            mails
+        where
+            mailId = p_mailId;
+
+        select p_mailId as mailId;
+    end if;
+end //
+
+delimiter ;
+
+drop procedure if exists logEmailDispatch;
+
+delimiter //
+
+--   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
+create procedure logEmailDispatch (
+    in p_mailId                              int ( 10 ) unsigned,
+    in p_message                             text
+)
+begin
+
+    -- Log this email that we dispatched
+    insert mailsSent (
+        message,
+        timestamp
+    ) values (
+        l_message,
+        utc_timestamp()
+    );
 
 end //
 
