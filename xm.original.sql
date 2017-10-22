@@ -171,7 +171,7 @@ begin
                 '628ec4efc1298daadf5d4e5084ab8665c8bc72e41d10527c0247a1b578a9c544', 'd438964f23c14bea9ea94bcfeebe5bb9',
                  0, 0, 0, utc_timestamp(), utc_timestamp());
 
-        insert activityLogs(message, userId, created) values ('{"NewUser":{"Message":"Brahma is born"}}', 1, utc_timestamp());
+        insert activityLogs(message, userId, created) values ('{"NewUser":true,"Message":"Brahma is born"}', 1, utc_timestamp());
 
         insert emailUserLog (userId, email, created) values (1, 'brahma@somesite.com', utc_timestamp());
 
@@ -1483,10 +1483,11 @@ delimiter ;
 create table if not exists mails (
     mailId                                    int ( 10 ) unsigned              not null auto_increment,
     sender                                    varchar( 64 )                    default null,
-    senderEmail                               varchar( 256 )                   default null,
+    senderEmail                               varchar( 128 )                   default null,
     recipients                                varchar( 4096 )                  not null,
     ccRecipients                              varchar( 4096 )                  default null,
     bccRecipients                             varchar( 4096 )                  default null,
+    replyTo                                   varchar( 128 )                   default null,
     subject                                   varchar( 255 )                   not null,
     subjectPrefix                             varchar( 64 )                    default null,
     body                                      text                             default null,
@@ -1529,10 +1530,11 @@ delimiter //
 create procedure addEmail (
     in p_apiKey                              varchar( 32 ),
     in p_sender                              varchar( 64 ),
-    in p_senderEmail                         varchar( 256 ),
+    in p_senderEmail                         varchar( 128 ),
     in p_recipients                          varchar( 4096 ),
     in p_ccRecipients                        varchar( 4096 ),
     in p_bccRecipients                       varchar( 4096 ),
+    in p_replyTo                             varchar( 128 ),
     in p_subject                             varchar( 255 ),
     in p_subjectPrefix                       varchar( 64 ),
     in p_body                                text,
@@ -1559,6 +1561,7 @@ begin
             recipients,
             ccRecipients,
             bccRecipients,
+            replyTo,
             subject,
             subjectPrefix,
             body,
@@ -1573,6 +1576,7 @@ begin
             p_recipients,
             p_ccRecipients,
             p_bccRecipients,
+            p_replyTo,
             p_subject,
             p_subjectPrefix,
             p_body,
@@ -1704,6 +1708,7 @@ begin
         subjectPrefix,
         ccRecipients,
         bccRecipients,
+        replyTo,
         body,
         hasAttachments,
         importance,
@@ -1776,7 +1781,7 @@ begin
 
         set l_subject = replace(l_subject, '"', '\\"');
 
-        set l_message = concat('{"id":', p_mailId, ',"timer":true');
+        set l_message = concat('{"id":', p_mailId);
         set l_message = concat(l_message, ',"from":"', p_ownerEmail, '","to":"', l_recipients);
         set l_message = concat(l_message, '","subject":"', l_subject, '"}');
 
@@ -1814,7 +1819,6 @@ delimiter //
 
 --   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
 create procedure logEmailDispatch (
-    in p_mailId                              int ( 10 ) unsigned,
     in p_message                             text
 )
 begin
@@ -1824,11 +1828,12 @@ begin
         message,
         timestamp
     ) values (
-        l_message,
+        p_message,
         utc_timestamp()
     );
+
+    select last_insert_id() as logId;
 
 end //
 
 delimiter ;
-
