@@ -10,6 +10,7 @@
 //  "to": "john.doe@abc.com",
 //  "from": "Jane Doe",
 //  "fromEmail": "jane@someemail.com",
+//  "replyTo":"jane@foobar.com",
 //  "subject": "Get Organized Reminder",
 //  "body": "I tried telling you many times, please get organized<\/b>.",
 //  "cc": "jane1@foo.com,jane2@bar.com",
@@ -27,7 +28,7 @@
 //
 // Output JSON:
 //   {"errorCode":0,
-//    "mailid":1}
+//    "id":1}
 //
 // Output JSON:
 //   {"errorCode":1,
@@ -53,7 +54,7 @@
 //    None
 //
 // Revisions:
-//    1. Sundar Krishnamurthy          sundar_k@hotmail.com       10/16/2017      Initial file created.
+//    1. Sundar Krishnamurthy          sundar_k@hotmail.com       10/09/2017      Initial file created.
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
 ini_set('session.session.use_only_cookies', TRUE);  // No session fixation
@@ -91,7 +92,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
         $errorCode    = 0;
         $errorMessage = null;
         $dump         = false;
-        $query        = "";
+        $mainQuery    = null;
 
         $fieldMask    = 0;
 
@@ -101,6 +102,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
         $apiKey       = null;
         $from         = null;
         $fromEmail    = null;
+        $replyTo      = null;
         $cc           = null;
         $bcc          = null;
         $ready        = true;
@@ -122,7 +124,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             }   //  End if ($to != "")
         }   // End if (array_key_exists("to", $mailRequest))
 
-        // So are subject
+        // So are subject,
         if (array_key_exists("subject", $mailRequest)) {
             $subject = trim($mailRequest["subject"]);
 
@@ -131,7 +133,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             }   //  End if ($subject != "")
         }   // End if (array_key_exists("subject", $mailRequest))
 
-        // And body
+        // and body
         if (array_key_exists("body", $mailRequest)) {
             $body = trim($mailRequest["body"]);
  
@@ -156,13 +158,18 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             // Read all other fields, if present
             // Optional fromEmail field, force set from field initially to this too
             if (array_key_exists("fromEmail", $mailRequest)) {
-                $fromEmail = $from = verifyEmails($mailRequest["fromEmail"], 256, true);
+                $fromEmail = $from = verifyEmails($mailRequest["fromEmail"], 128, true);
             }   // End if (array_key_exists("fromEmail", $mailRequest))
           
             // Optional from field
             if (array_key_exists("from", $mailRequest)) {
                 $from = trim($mailRequest["from"]);
             }   // End if (array_key_exists("from", $mailRequest))
+
+            // Optional reply-to field
+            if (array_key_exists("replyTo", $mailRequest)) {
+                $replyTo = verifyEmails($mailRequest["replyTo"], 128, true);
+            }   // End if (array_key_exists("replyTo", $mailRequest))
 
             // Optional cc field
             if (array_key_exists("cc", $mailRequest)) {
@@ -191,6 +198,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
             // Optional timestamp field
             if (array_key_exists("timestamp", $mailRequest)) {
+                // TODO: Regex to check if this is a valid date-time
                 $inputTimestamp = trim($mailRequest["timestamp"]);
 
                 // Only process valid dates and times (UTC)
@@ -206,13 +214,6 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     $ready = false;
                 }   //  End if (count($attachments) > 0)
             }   //  End if (array_key_exists("attachments", $mailRequest))
-        } else {
-            $errorCode = 4;
-            $errorMessage = "One or more of the mandatory fields: to, subject, body and apiKey not found.";
-        }   //  End if ($fieldMask === 15)
-
-        // No errors, save email
-        if ($errorCode === 0) {
 
             // Add Email to the database, with ready flag
             // Connect to DB
@@ -238,7 +239,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     if (strlen($useTo) > 4096) {
                         // Locate the last comma, skip this and the email address following it 
                         $commaPosition = strrpos($useTo, ",");
-                        $useTo = substr($useTo, 0, $commaPosition);
+                        $useTo         = substr($useTo, 0, $commaPosition);
                     }   //  End if (strlen($useTo) > 4096)
 
                     // Subject field
@@ -251,8 +252,17 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     // Body
                     $useBody = mysqli_real_escape_string($con, $body);
 
+                    // Add upper bounds on email body, 65536 bytes
+                    if (strlen($useBody) > 65536) {
+                        $useBody = substr($useBody, 0, 65536);
+                    }   //  End if (strlen($useBody) > 65536)               
+
                     // API Key field
                     $useApiKey = mysqli_real_escape_string($con, $apiKey);
+
+                    if (strlen($useApiKey) > 32) {
+                        $useApiKey = substr($useApiKey, 0, 32);
+                    }   //  End if (strlen($useApiKey) > 32)
 
                     // From field
                     $useFrom = "null";
@@ -260,9 +270,9 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     if (($from !== "") && ($from !== null)) {
                         $useFrom = mysqli_real_escape_string($con, $from);
 
-                        if (strlen($useFrom) > 64) {
-                            $useFrom = substr($useFrom, 0, 64);
-                        }   //  End if (strlen($useFrom) > 64)
+                        if (strlen($useFrom) > 128) {
+                            $useFrom = substr($useFrom, 0, 128);
+                        }   //  End if (strlen($useFrom) > 128)
 
                         $useFrom = "'" . $useFrom . "'";
                     }   //  End if (($from !== "") && ($from !== null))
@@ -273,34 +283,49 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     if (($fromEmail !== "") && ($fromEmail !== null)) {
                         $useFromEmail = mysqli_real_escape_string($con, $fromEmail);
 
-                        if (strlen($useFromEmail) > 256) {
-                            $useFromEmail = substr($useFromEmail, 0, 256);
-                        }   //  End if (strlen($useFromEmail) > 256)
+                        if (strlen($useFromEmail) > 128) {
+                            $useFromEmail = substr($useFromEmail, 0, 128);
+                        }   //  End if (strlen($useFromEmail) > 128)
 
                         $useFromEmail = "'" . $useFromEmail . "'";
-                    }   //  End if (($from !== "") && ($from !== null))
+                    }   //  End if (($fromEmail !== "") && ($fromEmail !== null))
+
+                    // replyTo field
+                    $useReplyTo = "null";
+
+                    if (($replyTo !== "") && ($replyTo !== null)) {
+                        $useReplyTo = mysqli_real_escape_string($con, $replyTo);
+
+                        if (strlen($useReplyTo) > 128) {
+                            $useReplyTo = substr($useReplyTo, 0, 128);
+                        }   //  End if (strlen($useReplyTo) > 128)
+
+                        $useReplyTo = "'" . $useReplyTo . "'";
+                    }   //  End if (($replyTo !== "") && ($replyTo !== null))
 
                     $useCc = "null";
+
                     if (($cc !== "") && ($cc !== null)) {
                         $useCc = mysqli_real_escape_string($con, $cc);
 
                         if (strlen($useCc) > 4096) {
                             // Locate the last comma, skip this and the email address following it 
                             $commaPosition = strrpos($useCc, ",");
-                            $useCc = substr($useTo, 0, $commaPosition);
+                            $useCc         = substr($useCc, 0, $commaPosition);
                         }   //  End if (strlen($useCc) > 4096)
 
                         $useCc = "'" . $useCc . "'";
                     }   //  End if (($cc !== "") && ($cc !== null)) {
 
                     $useBcc = "null";
+
                     if (($bcc !== "") && ($bcc !== null)) {
                         $useBcc = mysqli_real_escape_string($con, $bcc);
 
                         if (strlen($useBcc) > 4096) {
                             // Locate the last comma, skip this and the email address following it 
                             $commaPosition = strrpos($useBcc, ",");
-                            $useBcc = substr($useBcc, 0, $commaPosition);
+                            $useBcc        = substr($useBcc, 0, $commaPosition);
                         }   //  End if (strlen($useBcc) > 4096)
 
                         $useBcc = "'" . $useBcc . "'";
@@ -319,7 +344,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                         $usePrefix = "'" . $usePrefix . "'";
                     }   //  End if (($prefix !== "") && ($prefix !== null))
 
-                    // Timestamp field
+                    // Timestamp fields
                     $useTimestamp = "null";
 
                     if (($timestamp !== "") && ($timestamp !== null)) {
@@ -331,17 +356,17 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     $useImportance     = $importance ? 1 : 0;
 
                     // This is the query we will run to insert sessionId, key and value into the DB
-                    $query = "call addEmail('$useApiKey',$useFrom,$useFromEmail,'$useTo',$useCc,$useBcc,'$useSubject',$usePrefix," .
-                             "'$useBody',$useReady,$useHasAttachments,$useImportance,$useTimestamp);";
+                    $mainQuery = "call addEmail('$useApiKey',$useFrom,$useFromEmail,'$useTo',$useCc,$useBcc,$useReplyTo,'$useSubject'," . 
+                                 "$usePrefix,'$useBody',$useReady,$useHasAttachments,$useImportance,$useTimestamp);";
 
                     // Result of query
-                    $result = mysqli_query($con, $query);
+                    $result = mysqli_query($con, $mainQuery);
 
                     // Unable to fetch result, display error message
                     if (!$result) {
                         $errorCode     = 3;
                         $errorMessage  = "Invalid query: " . mysqli_error($con) . "<br/>";
-                        $errorMessage .= ("Whole query: " . $query);
+                        $errorMessage .= ("Whole query: " . $mainQuery);
                     } else if ($row = mysqli_fetch_assoc($result)) {
                         $mailId = intval($row["mailId"]);
 
@@ -356,19 +381,20 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
             // We have a valid email, with attachments
             if (($mailId > 0) && ($ready === false)) {
+
                 // Process each attachment
                 foreach ($attachments as &$attachment) {
 
                     // Verify that name and data fields are furnished
-                    if ((array_key_exists("name", $attachment)) &&
+                    if ((array_key_exists("filename", $attachment)) &&
                         (array_key_exists("data", $attachment))) {
 
-                        $filename = $attachment["name"];
+                        $filename = $attachment["filename"];
 
                         $rawData = base64_decode($attachment["data"]);
 
                         $hexData = bin2hex($rawData);
-                        $length = strlen($hexData)/2;
+                        $length = strlen($hexData) / 2;
 
                         // Connect to DB
                         $con = mysqli_connect($global_dbServer, $global_dbUsername, $global_dbPassword);
@@ -415,11 +441,12 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                         }   //  End if (!$con)
                     } else {
                         $errorCode = 5;
-                        $errorMessage = "One or more of the mandatory fields: name and data not found. Incomplete attachments in valid email.";
+                        $errorMessage = "One or more of the mandatory fields: filename and data not found. " .
+                                        "Incomplete attachments in valid email, that was dispatched";
                     }   //  End if ((array_key_exists("name", $attachment)) &&
                 }   //  End foreach ($attachments as &$attachment)
 
-                // Add Email to the database, with ready flag
+                // Update ready flag for this email
                 // Connect to DB
                 $con = mysqli_connect($global_dbServer, $global_dbUsername, $global_dbPassword);
 
@@ -460,23 +487,29 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     mysqli_close($con);
                 }   //  End if (!$con)
             }   //  End if (($mailId > 0) && ($ready === false))
-        }   //  End if ($errorCode === 0)
+        } else {
+            $errorCode = 4;
+            $errorMessage = "One or more of the mandatory fields: to, subject, body and apiKey were not found.";
+        }   //  End if ($fieldMask === 15)
 
         $responseJson              = array();
         $responseJson["errorCode"] = $errorCode;
 
-        if (($dump === 1) && ($errorCode === 0)) {
-            $responseJson["query"] = $query;
-        }   //  End if (($dump === 1) && ($errorCode === 0))
+        // Attach mySql query to email
+        if (($dump === true) && ($errorCode === 0)) {
+            $responseJson["query"] = $mainQuery;
+        }   //  End if (($dump === true) && ($errorCode === 0))
 
-        if ($errorMessage === null) {
-            $responseJson["id"] = $mailId;
-        } else {
+        // Add mailId in any case
+        $responseJson["mailId"] = $mailId;
+
+        // Some error occured
+        if ($errorMessage !== null) {
             $responseJson["error"] = $errorMessage;
-        }   //  End if ($errorMessage === null)
+        }   //  End if ($errorMessage !== null)
 
         // Send result back
-        // header('Content-Type: application/json; charset=utf-8');
+        header('Content-Type: application/json; charset=utf-8');
         print(utf8_encode(json_encode($responseJson)));
 
     }   //  End if ($postBody !== "")
