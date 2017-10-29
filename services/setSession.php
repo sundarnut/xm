@@ -60,7 +60,7 @@ if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     exit();
 }   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 
-// We are attempting to set a session variable via calling a page on the same website, and furnishing the right API key for it
+// Authorized client that is asking for settings for a user landing on the page for the first time
 if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     (isset($_SERVER["HTTP_APIKEY"])) &&
     ($_SERVER["HTTP_APIKEY"] === "$$API_KEY$$") &&                     // $$ API_KEY $$
@@ -71,6 +71,8 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     // We found a valid body to process
     if ($postBody !== "") {
         $id           = 0;
+        $dump         = 0;
+        $query        = "";
         $errorCode    = 0;
         $errorMessage = null;
 
@@ -79,6 +81,10 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
         $sessionId    = $request["sessionId"];
         $key          = $request["key"];
         $value        = $request["value"];
+
+        if (array_key_exists("dump", $request)) {
+            $dump = intval($request["dump"]);
+        }   //  End if (array_key_exists("dump", $request))
 
         // We have valid data coming for sessionId and key names
         if (($sessionId != "") &&
@@ -164,6 +170,10 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
             $sessionJson              = array();
             $sessionJson["errorCode"] = $errorCode;
+
+            if ($dump === 1) {
+                $sessionJson["query"] = $query;
+            }   //  End if ($dump === 1)
 
             if ($errorMessage === null) {
                 $sessionJson["id"] = $id;
