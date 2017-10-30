@@ -64,7 +64,7 @@ if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
     exit();
 }   //  End if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier)
 
-// We need a session variable that may be saved to this table, look up with sessionID and key
+// Authorized client that is asking for settings for a user landing on the page for the first time
 if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     (isset($_SERVER["HTTP_APIKEY"])) &&
     ($_SERVER["HTTP_APIKEY"] === "$$API_KEY$$") &&                     // $$ API_KEY $$
@@ -75,17 +75,24 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     // We found a valid body to process
     if ($postBody !== "") {
         $id           = 0;
+        $delete       = false;
+        $dump         = false;
+        $query        = null;
+
         $errorCode    = 0;
         $errorMessage = null;
-        $delete       = 0;
 
         $request      = json_decode($postBody, true);
 
         $sessionId    = $request["sessionId"];
         $key          = $request["key"];
 
+        if (array_key_exists("dump", $request)) {
+            $dump = boolval($request["dump"]);
+        }   //  End if (array_key_exists("dump", $request))
+
         if (array_key_exists("delete", $request)) {
-            $delete = intval($request["delete"]);
+            $delete = boolval($request["delete"]);
         }   //  End if (in_array("delete", $request))
 
         // We have valid data coming for sessionId and key names
@@ -124,6 +131,12 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                     if (strlen($useKey) > 32) {
                         $useKey = substr($useKey, 0, 32);
                     }   //  End if (strlen($useKey) > 32)
+
+                    if ($delete === true) {
+                        $delete = 1;
+                    } else {
+                        $delete = 0;
+                    }   //  End if ($delete === true)
 
                     // This is the query we will run to insert sessionId, key and value into the DB
                     $query = "call getSession('$useSessionId','$useKey',$delete);";
@@ -166,6 +179,10 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             } else {
                 $sessionJson["error"] = $errorMessage;
             }   //  End if ($errorMessage === null)
+
+            if ($dump === true) {
+                $sessionJson["query"] = $query;
+            }   //  End if ($dump === true)
 
             // Send result back
             header('Content-Type: application/json; charset=utf-8');
