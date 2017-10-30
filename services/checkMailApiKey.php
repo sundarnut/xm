@@ -68,12 +68,20 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     // We found a valid body to process
     if ($postBody !== "") {
         $active       = 0;
+        $email        = null;
+
         $errorCode    = 0;
         $errorMessage = null;
+        $query        = null;
+        $dump         = false;
 
         $request      = json_decode($postBody, true);
 
         $mailApiKey   = $request["mailApiKey"];
+
+        if (array_key_exists("dump", $request)) {
+            $dump = boolval($request["dump"]);
+        }   //  End if (in_array("dump", $postBody))
 
         // We have valid data coming for mailApiKey
         if (strlen($mailApiKey) === 32) {
@@ -119,6 +127,8 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
                             $active = intval($row["active"]);
                         }   //  End if ($row["active"] != null)
 
+                        $email = $row["email"];
+
                         // Free result
                         mysqli_free_result($result);
                     }   //  End if (!$result)
@@ -133,9 +143,14 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
             if ($errorMessage === null) {
                 $responseJson["active"] = $active;
+                $responseJson["email"]  = $email;
             } else {
                 $responseJson["error"] = $errorMessage;
             }   //  End if ($errorMessage === null)
+
+            if ($dump === true) {
+                $responseJson["query"] = $query;
+            }   //  End if ($dump === true)
 
             // Send result back
             header('Content-Type: application/json; charset=utf-8');
