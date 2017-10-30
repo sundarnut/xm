@@ -71,7 +71,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     // We found a valid body to process
     if ($postBody !== "") {
         $id           = 0;
-        $dump         = 0;
+        $dump         = false;
         $query        = "";
         $errorCode    = 0;
         $errorMessage = null;
@@ -83,7 +83,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
         $value        = $request["value"];
 
         if (array_key_exists("dump", $request)) {
-            $dump = intval($request["dump"]);
+            $dump = boolval($request["dump"]);
         }   //  End if (array_key_exists("dump", $request))
 
         // We have valid data coming for sessionId and key names
@@ -171,9 +171,9 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             $sessionJson              = array();
             $sessionJson["errorCode"] = $errorCode;
 
-            if ($dump === 1) {
+            if ($dump === true) {
                 $sessionJson["query"] = $query;
-            }   //  End if ($dump === 1)
+            }   //  End if ($dump === true)
 
             if ($errorMessage === null) {
                 $sessionJson["id"] = $id;
