@@ -1466,6 +1466,7 @@ create procedure checkMailApiKey(
 begin
 
     select
+        apiId as apiKeyId,
         active,
         email
     from
@@ -1488,8 +1489,8 @@ create table if not exists mails (
     ccRecipients                              varchar( 4096 )                  default null,
     bccRecipients                             varchar( 4096 )                  default null,
     replyTo                                   varchar( 128 )                   default null,
-    subject                                   varchar( 255 )                   not null,
-    subjectPrefix                             varchar( 64 )                    default null,
+    subject                                   varchar( 236 )                   not null,
+    subjectPrefix                             varchar( 16 )                    default null,
     body                                      text                             default null,
     ready                                     tinyint ( 1 ) unsigned           not null default 0,
     hasAttachments                            tinyint ( 1 ) unsigned           not null default 0,
@@ -1512,13 +1513,18 @@ create table if not exists mailAttachments (
     key ( mailAttachmentId )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
 
--- drop table if exists mailsSent;
+-- drop table if exists mailsLog;
 
---   35.  T14. mailsSent table to log all the emails we successfully dispatch via scheduling
-create table if not exists mailsSent (
+--   35.  T14. mailsLog table to log all the emails we successfully dispatch via scheduling
+create table if not exists mailsLog (
     logId                                     int ( 10 ) unsigned              not null auto_increment,
-    message                                   text not null,
-    timestamp                                 datetime default null,
+    apiKeyId                                  int ( 10 ) unsigned              not null,
+    mailId                                    int ( 10 ) unsigned              default null,
+    sender                                    varchar( 128 )                   not null,
+    recipient                                 varchar( 4096 )                  not null,
+    subject                                   varchar( 255 )                   not null,
+    size                                      int ( 10 ) unsigned              default null,
+    timestamp                                 datetime                         not null,
     key ( logId )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
 
@@ -1535,7 +1541,7 @@ create procedure addEmail (
     in p_ccRecipients                        varchar( 4096 ),
     in p_bccRecipients                       varchar( 4096 ),
     in p_replyTo                             varchar( 128 ),
-    in p_subject                             varchar( 255 ),
+    in p_subject                             varchar( 236 ),
     in p_subjectPrefix                       varchar( 64 ),
     in p_body                                text,
     in p_markMailAsReady                     tinyint ( 1 ) unsigned,
@@ -1759,40 +1765,22 @@ delimiter //
 
 --   41.  P27. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
 create procedure deleteEmail (
-    in p_mailId                               int ( 10 ) unsigned,
-    in p_ownerEmail                           varchar( 128 )
+    in p_mailId                               int ( 10 ) unsigned
 )
 begin
 
-    declare l_recipients                      varchar( 4096 );
-    declare l_subject                         varchar( 255 );
-    declare l_message                         text;
- 
-    set l_subject = null;
+    declare l_mailId                          int ( 10 ) unsigned;
 
-    select subject, recipients into
-        l_subject, l_recipients
+    set l_mailId = null;
+
+    select mailId
+        into l_mailId
     from
         mails
     where
         mailId = p_mailId;
 
-    if l_subject is not null then
-
-        set l_subject = replace(l_subject, '"', '\\"');
-
-        set l_message = concat('{"id":', p_mailId);
-        set l_message = concat(l_message, ',"from":"', p_ownerEmail, '","to":"', l_recipients);
-        set l_message = concat(l_message, '","subject":"', l_subject, '"}');
-
-        -- Log this email that we dispatched
-        insert mailsSent (
-            message,
-            timestamp
-        ) values (
-            l_message,
-            utc_timestamp()
-        );
+    if l_mailId is not null then
 
         -- This is moot, but still delete attachments prior to deleting emails
         delete
@@ -1819,16 +1807,28 @@ delimiter //
 
 --   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
 create procedure logEmailDispatch (
-    in p_message                             text
+    in p_apiKeyId                             int ( 10 ) unsigned,
+    in p_senderEmail                          varchar( 128 ),
+    in p_recipients                           varchar( 4096 ),
+    in p_subject                              varchar( 255 ),
+    in p_size                                 int ( 10 ) unsigned
 )
 begin
 
     -- Log this email that we dispatched
-    insert mailsSent (
-        message,
+    insert mailsLog (
+        apiKeyId,
+        sender,
+        recipient,
+        subject,
+        size,
         timestamp
     ) values (
-        p_message,
+        p_apiKeyId,
+        p_senderEmail,
+        p_recipients,
+        p_subject,
+        p_size,
         utc_timestamp()
     );
 
