@@ -24,7 +24,6 @@ $global_siteUrl = "$$FULL_URL$$";                               // $$ FULL_URL $
 $global_siteCookieQualifier = "$$SITE_COOKIE_QUALIFIER$$";      // $$ SITE_COOKIE_QUALIFIER $$
 $global_useDomain = false;
 
-
 // Function 1 - Check if the form has been posted from the same page
 function postedFromSame($url) {
 
@@ -52,10 +51,10 @@ function postedFromSame($url) {
             $pageUrl .= "://";
             $pageUrl .= $prefix.$_SERVER["SERVER_NAME"].$port.$_SERVER["REQUEST_URI"];
 
-            if ($pageUrl == $useUrl) {
+            if ($pageUrl === $useUrl) {
                 $sameForm = true;
                 break;
-            }   //  End if ($pageUrl == $useUrl)
+            }   //  End if ($pageUrl === $useUrl)
         }   //  End foreach ($ports as $port)
     }   //  End foreach ($prefixes as $prefix)
 
@@ -80,12 +79,12 @@ function getCurrentPageUrl() {
     }   //  End if ((array_key_exists("HTTPS", $_SERVER)) && ($_SERVER["HTTPS"] === "on"))
 
     $pageUrl .= "://";
-    if (($_SERVER["SERVER_PORT"] == "80") ||
+    if (($_SERVER["SERVER_PORT"] === "80") ||
         ((array_key_exists("HTTPS", $_SERVER)) && ($_SERVER["HTTPS"] === "on") && ($_SERVER["SERVER_PORT"] == 443))) {
         $pageUrl .= $wwwPrefix.$_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
     } else {
         $pageUrl .= $wwwPrefix.$_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
-    }   //  End if (($SERVER["SERVER_PORT"] == "80") ||
+    }   //  End if (($SERVER["SERVER_PORT"] === "80") ||
 
     return $pageUrl;
 }   //  End function getCurrentPageUrl()
@@ -108,4 +107,40 @@ function createMyGuid() {
                        mt_rand(0, 65535),
                        mt_rand(0, 65535));
 }   //  End function createMyGuid()
+
+
+function verifyEmails($inputEmails, $maxLength) {
+
+    $emails      = explode(",", $inputEmails);
+    $emailLength = 0;
+
+    $outputEmail = "";
+
+    foreach ($emails as &$email) {
+
+        $processEmail = trim($email);
+
+        if (filter_var($processEmail, FILTER_VALIDATE_EMAIL)) {
+
+            if (($emailLength + strlen($processEmail) + 1) < $maxLength) {
+
+                if ($outputEmail !== "") {
+                    $outputEmail .= ",";
+                    $emailLength += 1;
+                }   //  End if ($outputEmail !== "")
+
+                // Don't let any email addresses be more than 128 characters
+                if (strlen($processEmail) < 129) {
+                    $outputEmail .= $processEmail;
+                    $emailLength += strlen($processEmail);
+                }   //  End if (strlen($processEmail) < 129)
+            } else {
+                // Stop processing more email addresses
+                break;   
+            }   //  End if (($emailLength + strlen($processEmail) + 1) < $maxLength)
+        }   //  End if (filter_var($email, FILTER_VALIDATE_EMAIL))
+    }   //  End foreach ($emails as &$email)
+
+    return $outputEmail;
+}
 ?>
