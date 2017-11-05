@@ -802,7 +802,6 @@ delimiter //
 --   22.  P13. logUserAccess stored procedure - log the access attempt made by a client/user
 create procedure logUserAccess (
     in p_ipAddress                            decimal ( 39, 0 ),
-    in p_timeZone                             float (5, 1),
     in p_browserString                        varchar( 256 ),
     in p_referer                              varchar( 256 ),
     in p_sessionKey                           varchar( 32 )
@@ -811,14 +810,12 @@ begin
 
     insert accessLogs (
         ipAddress,
-        timeZone,
         browserString,
         referer,
         created,
         sessionKey
     ) values (
         p_ipAddress,
-        p_timeZone,
         p_browserString,
         p_referer,
         utc_timestamp(),
