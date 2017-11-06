@@ -808,22 +808,31 @@ create procedure logUserAccess (
 )
 begin
 
-    insert accessLogs (
-        ipAddress,
-        browserString,
-        referer,
-        created,
-        sessionKey
-    ) values (
-        p_ipAddress,
-        p_browserString,
-        p_referer,
-        utc_timestamp(),
-        p_sessionKey
-    );
+    declare l_logId                           int( 10 );
+    set l_logId = null;
 
-    select last_insert_id() as logId;
+    select logId into l_logId
+    from accessLogs where sessionKey = p_sessionKey;
 
+    if l_logId is null then
+        insert accessLogs (
+            ipAddress,
+            browserString,
+            referer,
+            created,
+            sessionKey
+        ) values (
+            p_ipAddress,
+            p_browserString,
+            p_referer,
+            utc_timestamp(),
+            p_sessionKey
+        );
+
+        set l_logId = last_insert_id();
+    end if;
+
+    select l_logId as logId;
 end //
 
 delimiter ;
@@ -1430,7 +1439,7 @@ begin
     from mailApiKeys;
 
     if l_apiCount = 0 then
-        
+
         insert mailApiKeys (
             apiKey,
             email,
