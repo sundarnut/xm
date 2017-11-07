@@ -76,6 +76,7 @@ create table if not exists users (
     salt                                      varchar( 32 ) not null,                            -- Unique, does not change
     password                                  varchar( 64 ) not null,
     userKey                                   varchar( 32 ) not null,                            -- Unique, does not change
+    otpKey                                    int ( 6 ) unsigned default null,
     accessKey                                 varchar( 32 ) default null,
     active                                    tinyint ( 1 ) unsigned not null default 0,
     exclude                                   tinyint ( 1 ) unsigned not null default 0,
@@ -1846,3 +1847,20 @@ begin
 end //
 
 delimiter ;
+
+-- drop table if exists userLoginDetails;
+
+--   43.  T15. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
+create table if not exists userLoginDetails (
+    loginId                                   int ( 10 ) unsigned not null auto_increment,
+    userId                                    int ( 10 ) unsigned not null,
+    cookie                                    varchar( 32 ) default null,                       -- Unique, cannot be changed
+    sessionId                                 varchar( 32 ) not null,
+    browserHash                               varchar( 32 ) default null,
+    active                                    tinyint ( 1 ) unsigned not null default 0,
+    created                                   datetime not null,
+    lastChecked                               datetime not null,
+    expires                                   datetime not null,
+    key ( loginId ),
+    index ix_userId_cookie ( userId, cookie )
+) engine=innodb default character set=utf8;
