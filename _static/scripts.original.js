@@ -22,36 +22,37 @@ var global_fqdn = "$$SITE_URL$$";                      // $$ SITE_URL $$
 // 1. Index page
 // Used in:
 //    index.php
-function loadLandingPage(sessionKey) {
+function loadLandingPage() {
 
-    if (sessionKey !== "") {
-        // Construct Date object
-        var currentDate = new Date();
+    // Construct Date object
+    var currentDate = new Date();
+    var sessionKey = $("#sessionKey").val();
+    var errorMask = parseInt($("#errorMask").val());
+
+    if ((sessionKey.length == 32) && (errorMask == 0)) {
+
+        sessionKey = sessionKey.replace("\"", "\\\"");
 
         var xhr = new XMLHttpRequest();
-        xhr.open("POST", global_fqdn + "updateTimezone.php", true);
+        xhr.open("POST", global_fqdn + "services/updateTimeZone.php", true);
 
-        //Send the proper header information along with the request
+        // Send the proper header information along with the request
         xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 
-//       xhr.onreadystatechange = function() {
-//           if (xhr.readyState == 4 && xhr.status == 200) {
-//
-//            }
-//        };
+//        xhr.onreadystatechange = function() {
+//             if ((xhr.readyState == 4) && (xhr.status == 200)) {
+//                 alert(xhr.responseText);
+//              }
+//          };
 
-        xhr.send("{\"request\":{\"sessionKey\":\"" + sessionKey + 
-                 "\",\"timeZone\":" + (-currentDate.getTimezoneOffset() / 60).toString() + "}}");
+        xhr.send("{\"sessionKey\":\"" + sessionKey +
+                 "\",\"timezone\":" + (-currentDate.getTimezoneOffset() / 60).toString() + "}");
     }
 
-    var txtElement = $("#txtUsername");
-
-    if (txtElement === null) {
-        txtElement = $("#txtPassword");
-    }
-
-    if (txtElement !== null) {
-        txtElement.focus();
+    if (errorMask == 2) {
+        $("#txtPassword").focus();
+    } else {
+        $("#txtUsername").focus();
     }
 }
 
@@ -78,14 +79,11 @@ function validateLoginForm() {
     // Return value, default error message is <ul>
     var errorMask = 0;
 
-    var errorMessage = null;
+    var errorMessage = "<ul>";
 
     // Read data on the login text field, trim it to remove whitespace on either side
     var loginElement = document.getElementById("txtUsername");
     var loginValue = fasttrim(loginElement.value);
-
-    // Locate loginNameSpan element
-    var loginSpanElement = document.getElementById("loginNameSpan");
 
     // Locate errorSection block, update display to block (from none)
     var errorSectionElement = document.getElementById("errorSection");
@@ -99,38 +97,33 @@ function validateLoginForm() {
     if (loginValue === "") {
         // We found an error
         errorMask = 1;
-
-        // Update error message to add this warning
-        errorMessage = "<ul><li>Please enter your registered user ID.</li></ul>";
+        errorMessage += "<li>Please enter your username.</li>";
     } else {
-        
+
         for (i = 0; i < loginValue.length; i++) {
             var c = loginValue[i];
 
             if (!(((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || ((c >= '0') && (c <= '9'))))  {
-                if ((c != '.') && (c != '_')) {
+                if ((c != '.') && (c != '_') && (c != '-')) {
                     errorMask = 1;
+                    errorMessage += "<li>Please enter a valid username.</li>";
                     break;
                 }
             }
         }
-
-        if (errorMask === 1) {
-            errorMessage = "<ul><li>Please enter a valid user ID.</li></ul>";
-        }
     }
 
-    if ((errorMask === 0) && (loginSpanElement.className = "redBoldLabel")) {
-        // Set className back as boldLabel
-        loginSpanElement.className = "boldLabel";
-    } else if (errorMask > 0) {
-        // Set className as boldRedLabel
-        loginSpanElement.className = "boldRedLabel";
+    var txtPassword = $("#txtPassword").val();
+
+    if (txtPassword === "") {
+        errorMask |= 2;
+        errorMessage += "<li>Please enter your password.</li>";
     }
+
+    document.getElementById("errorMask").value = errorMask;
 
     // In case you found errors, display error message block
-    if (errorMask === 1) {
-        // Add closing tag to make errorMessage displayable
+    if (errorMask > 0) {
         errorMessage += "</ul>";
 
         // Display error section
@@ -142,10 +135,6 @@ function validateLoginForm() {
         // Locate errorText element, set innerHTML to message we constructed above
         var errorTextElement = document.getElementById("errorText");
         errorTextElement.innerHTML = errorMessage;
-
-        document.getElementById("errorMask").value = errorMask;
-
-        loadLoginPage("");
     } else {
         // Reset error message
         errorMessage = "";
@@ -154,11 +143,7 @@ function validateLoginForm() {
         errorSectionElement.style.display = "none";
     }
 
-    var txtPassword = $("#txtPassword").val();
+    loadLandingPage();
 
-    if ((errorMask === 0) && (txtPassword === "")) {
-        $("#txtPassword").focus();
-    }
-	
-    return (errorMask === 0) && (txtPassword !== "");
+    return (errorMask === 0);
 }
