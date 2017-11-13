@@ -24,43 +24,43 @@
 
 require_once("class.xmSession.php");
 
-$username = "New User";
-$loggedIn = false;
-$userActive = false;
+$header_username   = "New User";
+$header_loggedIn   = false;
+$header_userActive = false;
 
-$memCache = new Memcache;
-$memCache->connect('localhost', 11211);
+// Check if first name is set
+if (isset($_SESSION["xm_session"])) {
 
-$actualSessionId = session_id();
+    $xmSession   = $_SESSION["xm_session"];
+    $header_name = $xmSession->getFirstName();
 
-$xmSession = $memCache->get($actualSessionId);
-
-if ($xmSession !== false) {
-    $name = $xmSession->getFirstName();
-    
-    if ($name != null) {
-        $username = $name;
-        $loggedIn = true;
+    if ($header_name != null) {
+        $header_username = $header_name;
+        $header_loggedIn = true;
 
         // Check if user has ability to access this application after valid login
         if (($xmSession->getActive() === true) && ($xmSession->getStatus() > 0)) {
-            $userActive = true;
+            $header_userActive = true;
         }   // End if (($xmSession->getActive() === true) && ($xmSession->getStatus() > 0))
-    }   //  End if ($name != null)
-}   //  End if (xmSession !== false) {
+    }   //  End if ($header_name != null)
+}   //  End if (isset($_SESSION["xm_session"]))
 ?>
-<a href="<?php print($global_siteUrl); ?>" border="0"><img style="position:absolute; top:5px; left:5px; width:150px; height:108px; border:0" alt="CSU" src="<?php print($global_siteUrl); ?>images/xm.png" /></a>
+<a href="<?php
+    print($global_siteUrl);
+?>" border="0"><img style="position:absolute; top:5px; left:5px; width:150px; height:108px; border:0" alt="XM" src="images/xm.png" /></a>
 <table width="100%" border="0" bgcolor="#BBBBBB">
   <tbody>
     <tr>
       <td align="right" valign="top" width="*">
-        <span style="font-family: Calibri,Verdana,Arial; font-size:medium">
-          Welcome <span style="font-weight:bold;"><?php print($username); ?></span>
+        <span style="font-family: Calibri,Verdana,Arial; font-size: small">
+          Welcome <span style="font-weight:bold;"><?php
+    print($header_username);
+?></span>
 <?php
-          if ($userActive) {
+          if ($header_userActive) {
               printf("<a href = \"" . $global_siteUrl . "\" class=\"forever\">Home</a>&nbsp;|&nbsp;");
-              printf("<a href = \"" . $global_siteUrl . "settings.php\" class=\"forever\">Settings</a>&nbsp;|&nbsp;");
-              printf("<a href = \"" . $global_siteUrl . "logout.php\" class=\"forever\">Logout</a>");
+              printf("<a href = \"settings.php\" class=\"forever\">Settings</a>&nbsp;|&nbsp;");
+              printf("<a href = \"logout.php\" class=\"forever\">Logout</a>");
           } // End if ($userActive)
 ?>
         </span>
@@ -69,9 +69,9 @@ if ($xmSession !== false) {
   </tbody>
 </table>
 <div class="bannerContent">
-  <span style="margin-left:165px; margin-top: 25px;font-family:Calibri,Verdana,Arial">XM</span>
-  <p/>
-  <span style="margin-left:165px;font-size:medium;font-family:Calibri,Verdana,Arial">Manage your money.</span>
+  <span style="margin-left: 165px; margin-top: 25px; font-family: Calibri,Verdana,Arial">XM</span>
+<span style="font-size: small;"><p/></span>
+<span style="margin-left:165px; font-size: small; font-family:Calibri,Verdana,Arial">Manage your money.</span>
 </div>
 <div class="fillerPanel40px">&nbsp;</div>
 <noscript>
