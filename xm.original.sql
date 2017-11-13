@@ -67,7 +67,7 @@ use $$DATABASE_NAME$$;                                                          
 --    1.   T1. users table stores folks that can access this application
 create table if not exists users (
     userId                                    int ( 10 ) unsigned not null auto_increment,
-    username                                  varchar( 32 ) default null,                       -- Unique, cannot be changed
+    username                                  varchar( 24 ) default null,                       -- Unique, cannot be changed
     firstName                                 varchar( 32 ) not null,
     lastName                                  varchar( 32 ) default null,
     firstLastName                             varchar( 65 ) not null,
@@ -195,7 +195,7 @@ delimiter ;
 create table if not exists loginAttempts (
     logId                                     int ( 10 ) unsigned not null auto_increment,
     sessionKey                                varchar( 32 ) not null,
-    userCredentials                           varchar( 128 ) default null,
+    username                                  varchar( 24 ) default null,
     failed                                    tinyint ( 1 ) unsigned default 0,
     alternatePage                             tinyint ( 1 ) unsigned default 0, -- User attempted from another page, not login.php
     created                                   datetime not null,
@@ -452,6 +452,67 @@ end //
 
 delimiter ;
 
+-- drop table if exists userLoginDetails;
+
+--   43.  T15. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
+create table if not exists userLoginDetails (
+    loginId                                   int ( 10 ) unsigned not null auto_increment,
+    userId                                    int ( 10 ) unsigned not null,
+    cookie                                    varchar( 32 ) default null,                       -- Unique, cannot be changed
+    sessionId                                 varchar( 32 ) not null,
+    browserHash                               varchar( 32 ) default null,
+    active                                    tinyint ( 1 ) unsigned not null default 0,
+    created                                   datetime not null,
+    lastChecked                               datetime not null,
+    expires                                   datetime not null,
+    key ( loginId ),
+    index ix_userId_cookie ( userId, cookie )
+) engine=innodb default character set=utf8;
+
+drop procedure if exists getUserPassword;
+
+delimiter //
+
+--   13.   P7. getUserData stored procedure - get the user data for an email address (or username) supplied
+--   Called from:
+--       1. login.php - to attempt to login a user
+--       2. forgotPassword.php - to fetch user data for a user trying to reset her password
+--       3. requestInvite.php - to check if this email exists for our user
+create procedure getUserPassword (
+    in p_username                             varchar( 24 ),
+    in p_sessionKey                           varchar( 32 ),
+    in p_logFlag                              tinyint ( 1 ) unsigned
+)
+begin
+
+    if p_logFlag = 1 then
+        insert loginAttempts (
+            sessionKey,
+            username,
+            created
+        ) values (
+            p_sessionKey,
+            p_username,
+            utc_timestamp()
+        );
+    end if;
+
+    select
+        userId,
+        salt,
+        password,
+        active,
+        status,
+        exclude
+    from
+        users
+    where
+        username = p_username;
+
+end //
+
+delimiter ;
+
 drop procedure if exists getUserData;
 
 delimiter //
@@ -462,9 +523,9 @@ delimiter //
 --       2. forgotPassword.php - to fetch user data for a user trying to reset her password
 --       3. requestInvite.php - to check if this email exists for our user
 create procedure getUserData (
-    in p_userCredentials                      varchar( 128 ),
+    in p_username                             varchar( 16 ),
     in p_sessionKey                           varchar( 32 ),
-    in p_logFlag                              tinyint ( 1 ) unsigned
+    in p_cookie                               varchar( 32 )
 )
 begin
 
@@ -476,6 +537,13 @@ begin
     declare l_questionId3                     int ( 10 ) unsigned;
     declare l_answerHash3                     varchar( 64 );
 
+    declare l_cookie                          varchar( 32 );
+    declare l_browserHash                     varchar( 32 );
+    declare l_active                          tinyint ( 1 ) unsigned;
+    declare l_created                         datetime;
+    declare l_lastChecked                     datetime;
+    declare l_expires                         datetime;
+
     set l_userId = null;
 
     set l_questionId1 = null;
@@ -485,6 +553,13 @@ begin
     set l_questionId3 = null;
     set l_answerHash3 = null;
 
+    set l_cookie = null;
+    set l_browserHash = null;
+    set l_active = null;
+    set l_created = null;
+    set l_lastChecked = null;
+    set l_expires = null;
+
     if p_logFlag = 1 then
         insert loginAttempts (
             sessionKey,
@@ -492,7 +567,7 @@ begin
             created
         ) values (
             p_sessionKey,
-            p_userCredentials,
+            p_username,
             utc_timestamp()
         );
     end if;
@@ -502,11 +577,9 @@ begin
     into
         l_userId
     from
-        users u
+        users
     where
-        p_userCredentials = email
-    or
-        p_userCredentials = username
+        username = p_username
     limit 1;
 
     if l_userId is not null then
@@ -543,34 +616,66 @@ begin
             userId = l_userId
         and
             sequenceId = 3;
-    end if;
 
-    select
-        userId,
-        username,
-        firstName,
-        lastName,
-        email,
-        salt,
-        password,
-        userKey,
-        accessKey,
-        active,
-        status,
-        exclude,
-        notificationMask,
-        l_questionId1 as questionId1,
-        l_answerHash1 as answerHash1,
-        l_questionId2 as questionId2,
-        l_answerHash2 as answerHash2,
-        l_questionId3 as questionId3,
-        l_answerHash3 as answerHash3
-    from
-        users
-    where
-        l_userId is not null
-    and
-        userId = l_userId;
+        if p_cookie is not null then
+
+            select
+                cookie,
+                browserHash,
+                active,
+                created,
+                lastChecked,
+                expires
+            into
+                l_cookie,
+                l_browserHash,
+                l_active,
+                l_created,
+                l_lastChecked,
+                l_expires
+            from
+                userLoginDetails
+            where
+                userId = l_userId
+            and
+                cookie = p_cookie
+            limit 1;
+
+        end if;
+
+        select
+            userId,
+            username,
+            firstName,
+            lastName,
+            email,
+            salt,
+            password,
+            userKey,
+            accessKey,
+            otpKey,
+            active,
+            status,
+            exclude,
+            notificationMask,
+            l_questionId1 as questionId1,
+            l_answerHash1 as answerHash1,
+            l_questionId2 as questionId2,
+            l_answerHash2 as answerHash2,
+            l_questionId3 as questionId3,
+            l_answerHash3 as answerHash3,
+            l_cookie as cookie,
+            l_browserHash as browserHash,
+            l_active as sessionActive,
+            l_created as cookieCreated,
+            l_lastChecked as lastChecked,
+            l_expires as cookieExpires
+        from
+            users
+        where
+            userId = l_userId;
+
+    end if;
 end //
 
 delimiter ;
@@ -1278,9 +1383,9 @@ begin
 
         select userId into l_userId from users where email = '$$ADMIN_EMAIL_ADDRESS$$';                -- $$ ADMIN_EMAIL_ADDRESS $$
 
-        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID1$$, 1, '$$ADMIN_ANSWER_HASH1$$', 1);   -- $$ ADMIN_QUESTION_ID1 $$, $$ ADMIN_ANSWER_HASH1 $$
-        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID2$$, 1, '$$ADMIN_ANSWER_HASH2$$', 1);   -- $$ ADMIN_QUESTION_ID2 $$, $$ ADMIN_ANSWER_HASH2 $$
-        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID3$$, 1, '$$ADMIN_ANSWER_HASH3$$', 1);   -- $$ ADMIN_QUESTION_ID3 $$, $$ ADMIN_ANSWER_HASH3 $$
+        call updateSecretQuestion(l_userId, 1, 1, '$$ADMIN_ANSWER_HASH1$$', 1);   -- $$ ADMIN_QUESTION_ID1 $$, $$ ADMIN_ANSWER_HASH1 $$
+        call updateSecretQuestion(l_userId, 2, 1, '$$ADMIN_ANSWER_HASH2$$', 1);   -- $$ ADMIN_QUESTION_ID2 $$, $$ ADMIN_ANSWER_HASH2 $$
+        call updateSecretQuestion(l_userId, 3, 1, '$$ADMIN_ANSWER_HASH3$$', 1);   -- $$ ADMIN_QUESTION_ID3 $$, $$ ADMIN_ANSWER_HASH3 $$
 
     end if;
 end //
@@ -1847,20 +1952,3 @@ begin
 end //
 
 delimiter ;
-
--- drop table if exists userLoginDetails;
-
---   43.  T15. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
-create table if not exists userLoginDetails (
-    loginId                                   int ( 10 ) unsigned not null auto_increment,
-    userId                                    int ( 10 ) unsigned not null,
-    cookie                                    varchar( 32 ) default null,                       -- Unique, cannot be changed
-    sessionId                                 varchar( 32 ) not null,
-    browserHash                               varchar( 32 ) default null,
-    active                                    tinyint ( 1 ) unsigned not null default 0,
-    created                                   datetime not null,
-    lastChecked                               datetime not null,
-    expires                                   datetime not null,
-    key ( loginId ),
-    index ix_userId_cookie ( userId, cookie )
-) engine=innodb default character set=utf8;
