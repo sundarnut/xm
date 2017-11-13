@@ -62,13 +62,13 @@ session_start();
 date_default_timezone_set("UTC");
 
 $errorMask          = 0;
-$errorHeaderMessage = 0;
+$errorHeaderMessage = null;
 $errorMessage       = null;
 $infoMessage        = null;
 
 $formPosted         = false;
 $xmSession          = null;
-$logId              = 0;
+$logId              = null;
 
 // First off, check if the application is being used by someone not typing the actual server name in the header
 if (strtolower($_SERVER["HTTP_HOST"]) !== $global_siteCookieQualifier) {
@@ -127,13 +127,13 @@ if (!isset($_SESSION["xm_session"])) {
     if ($errorCode > 0) {
         $errorMessage = $logResponse["error"];
 
-        mail("$$YOUR_EMAIL_ADDRESS$$", "index.php error " . $errorCode, $errorMessage);    // $$ YOUR_EMAIL_ADDRESS $$
+        mail("$$ADMIN_EMAIL_ADDRESS$$", "index.php error " . $errorCode, $errorMessage);   // $$ ADMIN_EMAIL_ADDRESS $$
     } else {
         $logId = intval($logResponse["logId"]);
 
         // Send email if the logId received is a multiple of 100
         if (($logId % 100) === 0) {
-            mail("$$YOUR_EMAIL_ADDRESS$$", "logId: " . $logId, "Usage statistics");       // $$ YOUR_EMAIL_ADDRESS $$
+            mail("$$ADMIN_EMAIL_ADDRESS$$", "logId: " . $logId, "Usage statistics");   // $$ ADMIN_EMAIL_ADDRESS $$
         }   //  End if (($logId % 10) === 0)
     }   //  End if ($errorCode > 0)
     // *************** END Step 1 ************************
@@ -148,8 +148,117 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
     (postedFromSame($_SERVER["HTTP_REFERER"]) === true)) {
 
     $formPosted = true;
+    $bitmask = 0;
 
+    $username = null;
+    $errorMessage = "<ul>";
+
+    if (isset($_POST["txtUsername"])) {
+        $username = trim($_POST["txtUsername"]);
+
+        if ($username !== "") {
+
+            $usernameChars = str_split($username);
+
+            foreach($usernameChars as $c) {
+
+                if (!((($c >= 'a') && ($c <= 'z')) || (($c >= 'A') && ($c <= 'Z')) || (($c >= '0') && ($c <= '9')))) {
+                    if (($c != '.') && ($c != '_') && ($c != '-')) {
+                        $errorMask = 1;
+                        $errorMessage .= "<li>Please enter a valid username.</li>";
+                        break;
+                    }   //  End if (($c != '.') && ($c != '_') && ($c != '-'))
+                }   //  End if (!((($c >= 'a') && ($c <= 'z')) || (($c >= 'A') && ($c <= 'Z')) || (($c >= '0') && ($c <= '9'))))
+            }   //  End foreach($usernameChars as $c)
+
+            if ($errorMask === 0) {
+                $bitmask = 1;
+            }   //  End if ($errorMask === 0)
+        } else {
+            $errorMask = 1;
+            $errorMessage .= "<li>Please enter your username.</li>";
+        }   //  End if ($username !== "")
+    }   //  End if (isset($_POST["txtUsername"]))
+
+    if (isset($_POST["txtPassword"])) {
+
+        $password = trim($_POST["txtPassword"]);
+
+        if ($password !== "") {
+            $bitmask |= 2;
+        } else {
+            $errorMask |= 2;
+            $errorMessage .= "<li>Please enter your password.</li>";
+        }   //  End if (isset($_POST["txtPassword"]))
+    }   //  End if (isset($_POST["txtUsername"]))
+
+    if ($bitmask === 3) {
+
+        $userId = null;
+
+        // STEP 2 - Call getUserPassword.php Web Service
+        // ********* Call Web Service to fetch password **********
+        $ch = curl_init();
+
+        $elements               = array();
+        $elements["username"]   = $username;
+        $elements["sessionKey"] = $xmSession->getSessionKey();
+
+        $ch                     = curl_init();
+
+        curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "services/getUserPassword.php");
+
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            "ApiKey: $$API_KEY$$",           // $$ API_KEY $$
+            "Content-Type: application/x-www-form-urlencoded",
+            "Accept: application/json"));
+
+        curl_setopt($ch, CURLOPT_SSLVERSION, 6);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode(utf8_encode(json_encode($elements))));
+
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+
+        session_write_close();
+
+        $response = curl_exec($ch);
+
+        curl_close($ch);
+
+        $loginResponse = json_decode(utf8_decode($response), true);
+        $errorCode     = intval($loginResponse["errorCode"]);
+
+        if ($errorCode > 0) {
+            $errorMessage = $loginResponse["error"];
+
+            mail("sundar@passion8cakes.com", "index.php error " . $errorCode, $errorMessage);
+        } else if (array_key_exists("userId", $loginResponse)) {
+
+            $userId   = intval($loginResponse["userId"]);
+            $salt     = $loginResponse["salt"];
+            $password = $loginResponse["password"];
+            $active   = boolval($loginResponse["active"]);
+            $status   = intval($loginResponse["status"]);
+
+            die("UserId is ". $userId . "<br/>salt is " . $salt . "<br/>active: " . $active . "<br/>status: " . $status . "<br/>Password: " . $password);
+
+        }   //  End if ($errorCode > 0)
+
+        if ($userId === null) {
+            $errorMask    = 1;
+            $errorMessage = "<ul><li>Invalid username and/or password.</li>";
+        }   //  End if ($userId === null)
+        // *************** END Step 2 ************************
+    } else {
+
+    }   //  End if ($bitmask === 3) {
 }   //  End if (($_SERVER["REQUEST_METHOD"] === "POST") &&
+
+if ($errorMask > 0) {
+    $errorMessage       .= "</ul>";
+    $errorHeaderMessage  = "Please correct these errors below";
+}   //  End if ($errorMask > 0)
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -164,21 +273,51 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
 
     <script type="text/javascript" language="JavaScript" src="_static/scripts.js"></script>
   </head>
-  <body class="bodyContent"
-<?php
-    if ($formPosted === false) {
-        print(" onload=\"loadLandingPage();\"");
-    }   //  End if ($formPosted === false)
-?>>
+  <body class="bodyContent" onload="loadLandingPage();">
     <?php include_once("header.php"); ?>
-    <form name="timeZoneForm" method="POST" action="<?php print($global_siteUrl); ?>index.php">
-      <input type="hidden" id="currentTimeZone" name="currentTimeZone" value="0"/>
-      <input type="hidden" id="sessionKey" name="sessionKey" value="<?php
-      if ($logId > 0) {
-          print($xmSession->getSessionKey());
-      }
-      ?>"/>
-      <span class="loadingLabel">&nbsp;&nbsp;Loading...</span><br/>&nbsp;
+    <div id="errorSection" style="display: <?php
+    print (($errorMask === 0) ? "none" : "block");
+?>;">
+      <div class="errorPanel" style="width: 450px">
+        <span class="boldLabel" id="errorHeaderSpan"><?php
+    print($errorHeaderMessage);
+?>:</span><br/>
+        <span class="inputLabel" id="errorText"><?php
+    if ($errorMask > 0) {
+        print($errorMessage);
+    }   //  End if ($errorMask > 0)
+?></span>
+      </div>
+      <div class="fillerPanel20px">&nbsp;</div>
+    </div>
+
+    <div id="infoSection" style="display: <?php
+    print (($infoMessage === null) ? "none" : "block");
+?>;">
+      <div class="infoPanel" style="width: 450px">
+        <span class="inputLabel" id="infoText"><?php
+    print($infoMessage);
+?></span>
+      </div>
+      <div class="fillerPanel20px">&nbsp;</div>
+    </div>
+
+    <form name="loginForm" method="POST" action="index.php">
+      <div style="margin-left: 20px;">
+        <input type="hidden" id="errorMask" name="errorMask" value="<?php
+    print($errorMask);
+?>"/>
+        <input type="hidden" id="sessionKey" name="sessionKey" value="<?php
+    if ($logId !== null) {
+        print($xmSession->getSessionKey());
+    }   //  End if ($logId !== null)
+?>"/>
+        <input type="text" placeholder="user-name" width="120" maxlength="24" name="txtUsername" id="txtUsername" value="<?php
+    print(($username === null) ? "" : $username);
+?>" /><br/>
+        <input type="password" placeholder="password" width="120" maxlength="48" name="txtPassword" id="txtPassword" /><br/>
+        <input type="Submit" value="Log-in" onclick="return validateLoginForm();"/>
+      </div>
     </form>
     <div class="fillerPanel40px">&nbsp;</div>
     <?php include_once("footer.php"); ?>
