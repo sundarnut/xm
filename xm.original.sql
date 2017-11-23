@@ -1952,3 +1952,262 @@ begin
 end //
 
 delimiter ;
+
+-- drop table if exists userLoginDetails;
+
+create table if not exists userLoginDetails (
+    loginId                                   int ( 10 ) unsigned not null auto_increment,
+    userId                                    int ( 10 ) unsigned not null,
+    cookie                                    varchar( 32 ) not null,
+    sessionKey                                varchar( 32 ) not null,
+    browserHash                               varchar( 32 ) not null,
+    active                                    tinyint( 1 ) not null default 0,
+    created                                   datetime not null,
+    lastUpdate                                datetime not null,
+    lastChecked                               datetime not null,
+    expires                                   datetime not null,
+    key ( loginId )
+) engine=innodb default character set=utf8;
+
+drop procedure if exists setLoginDetails;
+
+delimiter //
+
+create procedure setLoginDetails(
+    in p_userId                               int ( 10 ) unsigned,
+    in p_logId                                int ( 10 ) unsigned,
+    in p_cookie                               varchar( 32 ),
+    in p_sessionKey                           varchar( 32 ),
+    in p_browserHash                          varchar( 32 ),
+    in p_expires                              datetime
+)
+begin
+
+    declare l_loginId                         int ( 10 ) unsigned;
+    set l_loginId = null;
+
+    if p_logId is not null then
+
+        update loginAttempts
+        set status = 4
+        where logId = p_logId;
+
+    end if;
+
+    select loginId into l_loginId
+    from userLoginDetails
+    where userId = p_userId and
+    cookie = p_cookie
+    order by loginId
+    limit 1;
+
+    if l_loginId is null then
+
+        insert
+            userLoginDetails (
+            userId,
+            cookie,
+            sessionKey,
+            browserHash,
+            active,
+            created,
+            lastUpdate,
+            lastChecked,
+            expires
+        ) values (
+            p_userId,
+            p_cookie,
+            p_sessionKey,
+            p_browserHash,
+            1,
+            utc_timestamp(),
+            utc_timestamp(),
+            utc_timestamp(),
+            p_expires
+        );
+
+        select last_insert_id() into l_loginId;
+
+    else
+
+        update userLoginDetails
+        set sessionKey = l_sessionKey,
+        lastUpdate = utc_timestamp(),
+        lastChecked = utc_timestamp()
+        where loginId = l_loginId;
+
+    end if;
+
+    select l_loginId as loginId;
+end //
+
+delimiter ;
+
+drop procedure if exists getUserData;
+
+delimiter //
+
+create procedure getUserData (
+   in p_username                             varchar( 16 ),
+   in p_cookie                               varchar( 32 ),
+   in p_logId                                int( 10 ) unsigned
+)
+begin
+
+   declare l_userId                          int ( 10 ) unsigned;
+   declare l_question1                       varchar( 128 );
+   declare l_answerHash1                     varchar( 64 );
+   declare l_question2                       varchar( 128 );
+   declare l_answerHash2                     varchar( 64 );
+   declare l_question3                       varchar( 128 );
+   declare l_answerHash3                     varchar( 64 );
+
+   declare l_cookie                          varchar( 32 );
+   declare l_browserHash                     varchar( 32 );
+   declare l_active                          tinyint ( 1 ) unsigned;
+   declare l_created                         datetime;
+   declare l_lastChecked                     datetime;
+   declare l_expires                         datetime;
+
+   set l_userId = null;
+
+   set l_question1   = null;
+   set l_answerHash1 = null;
+   set l_question2   = null;
+   set l_answerHash2 = null;
+   set l_question3   = null;
+   set l_answerHash3 = null;
+
+   set l_cookie = null;
+   set l_browserHash = null;
+   set l_active = null;
+   set l_created = null;
+   set l_lastChecked = null;
+   set l_expires = null;
+
+   if p_logId is not null then
+
+       update loginAttempts
+       set status = 2
+       where logId = p_logId;
+
+   end if;
+
+   select
+       userId
+   into
+       l_userId
+   from
+       users
+   where
+       username = p_username
+   limit 1;
+
+   if l_userId is not null then
+
+       select
+           sq.question, usq.answerHash
+       into
+           l_question1, l_answerHash1
+       from
+           userSecretQuestions usq
+       inner join
+           secretQuestions sq
+       on
+           usq.questionId = sq.questionId
+       where
+           usq.userId = l_userId
+       and
+           usq.sequenceId = 1;
+
+       select
+           sq.question, usq.answerHash
+       into
+           l_question2, l_answerHash2
+       from
+           userSecretQuestions usq
+       inner join
+           secretQuestions sq
+       on
+           usq.questionId = sq.questionId
+       where
+           usq.userId = l_userId
+       and
+           usq.sequenceId = 2;
+
+       select
+           sq.question, usq.answerHash
+       into
+           l_question3, l_answerHash3
+       from
+           userSecretQuestions usq
+       inner join
+           secretQuestions sq
+       on
+           usq.questionId = sq.questionId
+       where
+           usq.userId = l_userId
+       and
+           usq.sequenceId = 3;
+
+       if p_cookie is not null then
+
+           select
+               cookie,
+               browserHash,
+               active,
+               created,
+               lastChecked,
+               expires
+           into
+               l_cookie,
+               l_browserHash,
+               l_active,
+               l_created,
+               l_lastChecked,
+               l_expires
+           from
+               userLoginDetails
+           where
+               userId = l_userId
+           and
+               cookie = p_cookie
+           limit 1;
+
+       end if;
+
+       select
+           userId,
+           username,
+           firstName,
+           lastName,
+           email,
+           salt,
+           password,
+           userKey,
+           accessKey,
+           active,
+           status,
+           exclude,
+           notificationMask,
+
+           l_question1 as question1,
+           l_answerHash1 as answerHash1,
+           l_question2 as question2,
+           l_answerHash2 as answerHash2,
+           l_question3 as question3,
+           l_answerHash3 as answerHash3,
+
+           l_cookie as cookie,
+           l_browserHash as browserHash,
+           l_active as sessionActive,
+           l_created as cookieCreated,
+           l_lastChecked as lastChecked,
+           l_expires as cookieExpires
+       from
+           users
+       where
+           userId = l_userId;
+
+   end if;
+end
