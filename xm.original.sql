@@ -2074,6 +2074,7 @@ begin
 
         update userLoginDetails
         set sessionKey = p_sessionKey,
+        active = 1,
         lastUpdate = utc_timestamp(),
         lastChecked = utc_timestamp()
         where loginId = l_loginId;
