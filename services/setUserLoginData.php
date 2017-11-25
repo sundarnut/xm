@@ -218,10 +218,10 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") &&
             }   //  End if (($dump === true) && ($query !== null))
 
             // Send result back
-            header('Content-Type: application/json; charset=utf-8');
+            header("Content-Type: application/json; charset=utf-8");
             print(utf8_encode(json_encode($outputJson)));
         } else {
-            mail("$$ADMIN_EMAIL$$", "Error in setUserLoginDetails.php", "Not all necessary json parameters furnished (63): " . $bitmask . "<br/>" . $postBody); //      $$ ADMIN_EMAIL $$
+            mail("sundar@passion8cakes.com", "Error in setUserLoginDetails.php", "JSON bitmask (63): " . $bitmask . "<br/>" . $postBody); //      $$ ADMIN_EMAIL $$
         }   //  End if ($bitmask === 63)
     }   //  End if ($postBody !== "")
 }   //  End if (($_SERVER["REQUEST_METHOD"] === "POST") &&
