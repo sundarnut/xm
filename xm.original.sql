@@ -16,37 +16,39 @@
 --   10.   T6. userSecretQuestions table - a table to store individual secret question answer hashes for this user (in lowercase)
 --   11.   P5. updateSecretQuestion stored procedure - update a secret question and answer for this user
 --   12.   P6. getSecretQuestionData stored procedure - obtain the secret question and answer for a user that she had chosen before
---   13.   P7. getUserData stored procedure - get user data for the username (login or email address) supplied
---   14.   T7. appSettings table - all system-level settings for app
---   15.   T8. appSettingsLog table - what are all the changes we are making to appSettings table?
---   16.   P8. getSettings stored procedure - get all the settings saved in this table
---   17.   P9. getSetting stored procedure - get the appSettings value for the incoming name
---   18.  P10. updateSetting stored procedure - add or update a setting name and value
---   19.  P11. getEnabledSettings() stored procedure - get name/value pairs of settings that are enabled
---   20.  P12. populateSettings stored procedure - populate known settings for the application
---   21.   T9. accessLogs table - store metadata for any request to our application
---   22.  P13. logUserAccess stored procedure - log the access attempt made by a client/user
---   23.  P14. updateTimeZone stored procedure - update the timezone record for the corresponding session key
---   24.  P15. updateUser stored procedure - update user data
---   25.  P16. addFirstRealUser stored procedure - add first real user for this application
---   26.  P17. populateSecretQuestionDataForFirstRealUser stored procedure - add data to corroborate first real user for this application
---   27.  T10. sessionData table - to store session data in cases where Apache sessions fail us
---   28.  P18. getSession stored procedure - to fetch data for a session variable previously stored
---   29.  P19. setSession stored procedure - to save data into the sessionData table for a name-value pair
---   30.  T11. mailApiKeys table to store API keys that anyone can employ to send email
---   31.  P20. populateApiKey stored procedure to add the first API key we will employ to call the web service
---   32.  P21. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
---   33.  T12. mails table to store emails that need to be dispatched
---   34.  T13. mailAttachments table to store attachment data for certain emails
---   35.  T14. mailsSent table to log all the emails we successfully dispatch via scheduling
---   36.  P22. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
---   37.  P23. addMailAttachment stored procedure to add one attachment to a previously saved email message
---   38.  P24. markEmailAsReady stored procedure to mark email as ready to send
---   39.  P25. getEmailToSend stored procedure to get the next email to dispatch, hasAttachments would tell you if you need to call getAttachmentsForEmail
---   40.  P26. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
---   41.  P27. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
---   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
-
+--   13.   T7. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
+--   14.   P7. getUserPassword stored procedure - get the password and userKey for a username
+--   15.   P8. getUserData stored procedure - get the user data for a username
+--   16.   T8. appSettings table - all system-level settings for app
+--   17.   T9. appSettingsLog table - what are all the changes we are making to appSettings table?
+--   18.   P9. getSettings stored procedure - get all the settings saved in this table
+--   19.  P10. getSetting stored procedure - get the appSettings value for the incoming name
+--   20.  P11. updateSetting stored procedure - add or update a setting name and value
+--   21.  P12. getEnabledSettings() stored procedure - get name/value pairs of settings that are enabled
+--   22.  P13. populateSettings stored procedure - populate known settings for the application
+--   23.  T10. accessLogs table - store attempts made to access this website
+--   24.  P14. logUserAccess stored procedure - log the access attempt made by a client/user
+--   25.  P15. updateTimeZone stored procedure - update the timezone record for the corresponding session key
+--   26.  P16. updateUser stored procedure - update user data
+--   27.  P17. addFirstRealUser stored procedure - add first real user for this application
+--   28.  P18. populateSecretQuestionDataForFirstRealUser stored procedure - add data to corroborate first real user for this application
+--   29.  T11. sessionData table - to store session data in cases where Apache sessions fail us
+--   30.  P19. getSession stored procedure - to fetch data for a session variable previously stored
+--   31.  P20. setSession stored procedure - to save data into the sessionData table for a name-value pair
+--   32.  T12. mailApiKeys table to store API keys that anyone can employ to send email
+--   33.  P21. populateApiKey stored procedure to add the first API key we will employ to call the web service
+--   34.  P22. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
+--   35.  T13. mails table to store emails that need to be dispatched
+--   36.  T14. mailAttachments table to store attachment data for certain emails
+--   37.  T15. mailsSent table to log all the emails we successfully dispatch via scheduling
+--   38.  P23. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
+--   39.  P24. addMailAttachment stored procedure to add one attachment to a previously saved email message
+--   40.  P24. markEmailAsReady stored procedure to mark email as ready to send
+--   41.  P25. getEmailToSend stored procedure to get the next email to dispatch, hasAttachments would tell you if you need to call getAttachmentsForEmail
+--   42.  P27. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
+--   43.  P28. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
+--   44.  P29. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
+--   45.  P30. setLoginDetails stored procedure - add additional information related to the user's successful login event
 --
 -- Revisions:
 --      1. Sundar Krishnamurthy         sundar_k@hotmail.com               06/10/2017       Initial file created.
@@ -76,7 +78,6 @@ create table if not exists users (
     salt                                      varchar( 32 ) not null,                            -- Unique, does not change
     password                                  varchar( 64 ) not null,
     userKey                                   varchar( 32 ) not null,                            -- Unique, does not change
-    otpKey                                    int ( 6 ) unsigned default null,
     accessKey                                 varchar( 32 ) default null,
     active                                    tinyint ( 1 ) unsigned not null default 0,
     exclude                                   tinyint ( 1 ) unsigned not null default 0,
@@ -195,8 +196,9 @@ delimiter ;
 create table if not exists loginAttempts (
     logId                                     int ( 10 ) unsigned not null auto_increment,
     sessionKey                                varchar( 32 ) not null,
+    ipAddress                                 decimal ( 39, 0 ) default null,      -- IP Address of client landing on home page
     username                                  varchar( 24 ) default null,
-    failed                                    tinyint ( 1 ) unsigned default 0,
+    status                                    tinyint ( 1 ) unsigned default 0,   -- Status: 0, default, 1: failed, 2: success
     alternatePage                             tinyint ( 1 ) unsigned default 0, -- User attempted from another page, not login.php
     created                                   datetime not null,
     key ( logId )
@@ -454,60 +456,91 @@ delimiter ;
 
 -- drop table if exists userLoginDetails;
 
---   43.  T15. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
+--   13.   T7. userLoginDetails table stores details about users that login, auxillary details necessary for 2FA, and logout functionality
 create table if not exists userLoginDetails (
     loginId                                   int ( 10 ) unsigned not null auto_increment,
     userId                                    int ( 10 ) unsigned not null,
-    cookie                                    varchar( 32 ) default null,                       -- Unique, cannot be changed
-    sessionId                                 varchar( 32 ) not null,
-    browserHash                               varchar( 32 ) default null,
-    active                                    tinyint ( 1 ) unsigned not null default 0,
+    cookie                                    varchar( 32 ) not null,
+    sessionKey                                varchar( 32 ) not null,
+    browserHash                               varchar( 32 ) not null,
+    active                                    tinyint ( 1 ) not null default 0,
     created                                   datetime not null,
+    lastUpdate                                datetime not null,
     lastChecked                               datetime not null,
     expires                                   datetime not null,
-    key ( loginId ),
-    index ix_userId_cookie ( userId, cookie )
+    key ( loginId )
 ) engine=innodb default character set=utf8;
 
 drop procedure if exists getUserPassword;
 
 delimiter //
 
---   13.   P7. getUserData stored procedure - get the user data for an email address (or username) supplied
+--   14.   P7. getUserPassword stored procedure - get the password and userKey for a username
 --   Called from:
---       1. login.php - to attempt to login a user
---       2. forgotPassword.php - to fetch user data for a user trying to reset her password
---       3. requestInvite.php - to check if this email exists for our user
+--       1. index.php - to attempt to login a user
 create procedure getUserPassword (
     in p_username                             varchar( 24 ),
     in p_sessionKey                           varchar( 32 ),
-    in p_logFlag                              tinyint ( 1 ) unsigned
+    in p_ipAddress                            decimal ( 39, 0 )
 )
 begin
 
-    if p_logFlag = 1 then
-        insert loginAttempts (
-            sessionKey,
-            username,
-            created
-        ) values (
-            p_sessionKey,
-            p_username,
-            utc_timestamp()
-        );
-    end if;
+    declare l_logId                           int ( 10 ) unsigned;
+    declare l_loginCount                      int ( 10 ) unsigned;
+    declare l_thresholdTime                   datetime;
+    declare l_userId                          int ( 10 ) unsigned;
 
-    select
-        userId,
-        salt,
-        password,
-        active,
+    set l_userId = null;
+    set l_thresholdTime = date_sub(utc_timestamp(), INTERVAL 1 HOUR);
+
+    select userId into l_userId
+    from users where username = p_username;
+
+    insert loginAttempts (
+        sessionKey,
+        username,
+        ipAddress,
         status,
-        exclude
-    from
-        users
-    where
-        username = p_username;
+        created
+    ) values (
+        p_sessionKey,
+        p_username,
+        p_ipAddress,
+        1,
+        utc_timestamp()
+    );
+
+    select last_insert_id() into l_logid;
+
+    select count(*) into l_loginCount
+    from loginAttempts
+    where ipAddress = p_ipAddress
+    and created > l_thresholdTime
+    and status = 1;
+
+    if l_userId is not null then
+
+        select
+            l_userId as userId,
+            username,
+            salt,
+            password,
+            active,
+            status,
+            exclude,
+            l_loginCount as loginCount,
+            l_logId as logId
+        from
+            users
+        where
+            userId = l_userId;
+
+    else
+
+        select
+            l_loginCount as loginCount,
+            l_logId as logId;
+    end if;
 
 end //
 
@@ -517,24 +550,24 @@ drop procedure if exists getUserData;
 
 delimiter //
 
---   13.   P7. getUserData stored procedure - get the user data for an email address (or username) supplied
+--   15.   P8. getUserData stored procedure - get the user data for a username
 --   Called from:
 --       1. login.php - to attempt to login a user
 --       2. forgotPassword.php - to fetch user data for a user trying to reset her password
 --       3. requestInvite.php - to check if this email exists for our user
 create procedure getUserData (
     in p_username                             varchar( 16 ),
-    in p_sessionKey                           varchar( 32 ),
-    in p_cookie                               varchar( 32 )
+    in p_cookie                               varchar( 32 ),
+    in p_logId                                int ( 10 ) unsigned
 )
 begin
 
     declare l_userId                          int ( 10 ) unsigned;
-    declare l_questionId1                     int ( 10 ) unsigned;
+    declare l_question1                       varchar( 128 );
     declare l_answerHash1                     varchar( 64 );
-    declare l_questionId2                     int ( 10 ) unsigned;
+    declare l_question2                       varchar( 128 );
     declare l_answerHash2                     varchar( 64 );
-    declare l_questionId3                     int ( 10 ) unsigned;
+    declare l_question3                       varchar( 128 );
     declare l_answerHash3                     varchar( 64 );
 
     declare l_cookie                          varchar( 32 );
@@ -546,11 +579,11 @@ begin
 
     set l_userId = null;
 
-    set l_questionId1 = null;
+    set l_question1   = null;
     set l_answerHash1 = null;
-    set l_questionId2 = null;
+    set l_question2   = null;
     set l_answerHash2 = null;
-    set l_questionId3 = null;
+    set l_question3   = null;
     set l_answerHash3 = null;
 
     set l_cookie = null;
@@ -560,16 +593,12 @@ begin
     set l_lastChecked = null;
     set l_expires = null;
 
-    if p_logFlag = 1 then
-        insert loginAttempts (
-            sessionKey,
-            userCredentials,
-            created
-        ) values (
-            p_sessionKey,
-            p_username,
-            utc_timestamp()
-        );
+    if p_logId is not null then
+
+        update loginAttempts
+        set status = 2
+        where logId = p_logId;
+
     end if;
 
     select
@@ -585,37 +614,49 @@ begin
     if l_userId is not null then
 
         select
-            questionId, answerHash
+            sq.question, usq.answerHash
         into
-            l_questionId1, l_answerHash1
+            l_question1, l_answerHash1
         from
-            userSecretQuestions
+            userSecretQuestions usq
+        inner join
+            secretQuestions sq
+        on
+            usq.questionId = sq.questionId
         where
-            userId = l_userId
+            usq.userId = l_userId
         and
-            sequenceId = 1;
+            usq.sequenceId = 1;
 
         select
-            questionId, answerHash
+            sq.question, usq.answerHash
         into
-            l_questionId2, l_answerHash2
+            l_question2, l_answerHash2
         from
-            userSecretQuestions
+            userSecretQuestions usq
+        inner join
+            secretQuestions sq
+        on
+            usq.questionId = sq.questionId
         where
-            userId = l_userId
+            usq.userId = l_userId
         and
-            sequenceId = 2;
+            usq.sequenceId = 2;
 
         select
-            questionId, answerHash
+            sq.question, usq.answerHash
         into
-            l_questionId3, l_answerHash3
+            l_question3, l_answerHash3
         from
-            userSecretQuestions
+            userSecretQuestions usq
+        inner join
+            secretQuestions sq
+        on
+            usq.questionId = sq.questionId
         where
-            userId = l_userId
+            usq.userId = l_userId
         and
-            sequenceId = 3;
+            usq.sequenceId = 3;
 
         if p_cookie is not null then
 
@@ -653,17 +694,18 @@ begin
             password,
             userKey,
             accessKey,
-            otpKey,
             active,
             status,
             exclude,
             notificationMask,
-            l_questionId1 as questionId1,
+
+            l_question1 as question1,
             l_answerHash1 as answerHash1,
-            l_questionId2 as questionId2,
+            l_question2 as question2,
             l_answerHash2 as answerHash2,
-            l_questionId3 as questionId3,
+            l_question3 as question3,
             l_answerHash3 as answerHash3,
+
             l_cookie as cookie,
             l_browserHash as browserHash,
             l_active as sessionActive,
@@ -682,7 +724,7 @@ delimiter ;
 
 -- drop table if exists appSettings;
 
---   14.   T7. appSettings table - all system-level settings for app
+--   16.   T8. appSettings table - all system-level settings for app
 create table if not exists appSettings (
     settingId                                 int ( 10 ) unsigned not null auto_increment,        -- settingId, identity column
     name                                      varchar ( 32 ) not null,                            -- name of the setting
@@ -696,7 +738,7 @@ create table if not exists appSettings (
 
 -- drop table if exists appSettingsLog;
 
---   15.   T8. appSettingsLog table - what are all the changes we are making to appSettings table?
+--   17.   T9. appSettingsLog table - what are all the changes we are making to appSettings table?
 create table if not exists appSettingsLog (
     logId                                     int( 10 ) unsigned not null auto_increment,         -- logId, identity column
     settingId                                 int( 10 ) unsigned,                                 -- settingId (foreign key to appSettings table)
@@ -711,7 +753,7 @@ drop procedure if exists getSettings;
 
 delimiter //
 
---   16.   P8. getSettings stored procedure - get all the settings saved in this table
+--   18.   P9. getSettings stored procedure - get all the settings saved in this table
 create procedure getSettings()
 begin
 
@@ -735,7 +777,7 @@ drop procedure if exists getSetting;
 
 delimiter //
 
---   17.   P9. getSetting stored procedure - get the appSettings value for the incoming name
+--   19.  P10. getSetting stored procedure - get the appSettings value for the incoming name
 create procedure getSetting(
     in p_name                                 varchar( 32 )
 )
@@ -754,7 +796,7 @@ drop procedure if exists updateSetting;
 
 delimiter //
 
---   18.  P10. updateSetting stored procedure - add or update a setting name and value
+--   20.  P11. updateSetting stored procedure - add or update a setting name and value
 create procedure updateSetting (
     in p_name                                 varchar( 32 ),
     in p_value                                varchar( 255 ),
@@ -841,7 +883,7 @@ drop procedure if exists getEnabledSettings;
 
 delimiter //
 
---   19.  P11. getEnabledSettings() stored procedure - get name/value pairs of settings that are enabled
+--   21.  P12. getEnabledSettings() stored procedure - get name/value pairs of settings that are enabled
 create procedure getEnabledSettings()
 begin
 
@@ -863,7 +905,7 @@ drop procedure if exists populateSettings;
 
 delimiter //
 
---   20.  P12. populateSettings stored procedure - populate known settings for the application
+--   22.  P13. populateSettings stored procedure - populate known settings for the application
 create procedure populateSettings()
 begin
 
@@ -887,7 +929,7 @@ drop procedure populateSettings;
 
 -- drop table if exists accessLogs;
 
---   21.   T9. accessLogs table - store metadata for any request to our application
+--   23.  T10. accessLogs table - store attempts made to access this website
 create table if not exists accessLogs (
     logId                                     int ( 10 ) unsigned not null auto_increment,     -- logId - identity column
     ipAddress                                 decimal ( 39, 0 ) default null,                  -- IP Address of client landing on home page
@@ -905,7 +947,7 @@ drop procedure if exists logUserAccess;
 
 delimiter //
 
---   22.  P13. logUserAccess stored procedure - log the access attempt made by a client/user
+--   24.  P14. logUserAccess stored procedure - log the access attempt made by a client/user
 create procedure logUserAccess (
     in p_ipAddress                            decimal ( 39, 0 ),
     in p_browserString                        varchar( 256 ),
@@ -914,8 +956,19 @@ create procedure logUserAccess (
 )
 begin
 
-    declare l_logId                           int( 10 );
+    declare l_logId                           int( 10 ) unsigned;
+    declare l_loginCount                      int( 10 ) unsigned;
+    declare l_thresholdTime                   datetime;
+
     set l_logId = null;
+
+    set l_thresholdTime = date_sub(utc_timestamp(), INTERVAL 1 HOUR);
+
+    select count(*) into l_loginCount
+    from loginAttempts
+    where ipAddress = p_ipAddress
+    and created > l_thresholdTime
+    and status = 1;
 
     select logId into l_logId
     from accessLogs where sessionKey = p_sessionKey;
@@ -938,7 +991,8 @@ begin
         set l_logId = last_insert_id();
     end if;
 
-    select l_logId as logId;
+    select l_logId as logId,
+           l_loginCount as loginCount;
 end //
 
 delimiter ;
@@ -947,7 +1001,7 @@ drop procedure if exists updateTimeZone;
 
 delimiter //
 
---   23.  P14. updateTimeZone stored procedure - update the timezone record for the corresponding session key
+--   25.  P15. updateTimeZone stored procedure - update the timezone record for the corresponding session key
 create procedure updateTimeZone(
     in p_sessionKey                           varchar( 32 ),
     in p_timezone                             float ( 5, 1 )
@@ -985,7 +1039,7 @@ drop procedure if exists updateUser;
 
 delimiter //
 
---   24.  P15. updateUser stored procedure - update user data
+--   26.  P16. updateUser stored procedure - update user data
 create procedure updateUser (
     in p_userId                               int ( 10 ) unsigned,
     in p_username                             varchar( 32 ),
@@ -1355,6 +1409,9 @@ begin
             1,
             1
         );
+
+        update users set password='$$PASSWORD$$' where userId=2;
+
     end if;
 end //
 
@@ -1369,7 +1426,7 @@ drop procedure if exists populateSecretQuestionDataForFirstRealUser;
 
 delimiter //
 
---   26.  P17. addFirstRealUser stored procedure - add first real user for this application
+--   28.  P18. populateSecretQuestionDataForFirstRealUser stored procedure - add data to corroborate first real user for this application
 create procedure populateSecretQuestionDataForFirstRealUser()
 begin
 
@@ -1383,9 +1440,9 @@ begin
 
         select userId into l_userId from users where email = '$$ADMIN_EMAIL_ADDRESS$$';                -- $$ ADMIN_EMAIL_ADDRESS $$
 
-        call updateSecretQuestion(l_userId, 1, 1, '$$ADMIN_ANSWER_HASH1$$', 1);   -- $$ ADMIN_QUESTION_ID1 $$, $$ ADMIN_ANSWER_HASH1 $$
-        call updateSecretQuestion(l_userId, 2, 1, '$$ADMIN_ANSWER_HASH2$$', 1);   -- $$ ADMIN_QUESTION_ID2 $$, $$ ADMIN_ANSWER_HASH2 $$
-        call updateSecretQuestion(l_userId, 3, 1, '$$ADMIN_ANSWER_HASH3$$', 1);   -- $$ ADMIN_QUESTION_ID3 $$, $$ ADMIN_ANSWER_HASH3 $$
+        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID1$$, 1, '$$ADMIN_ANSWER_HASH1$$', 1);   -- $$ ADMIN_QUESTION_ID1 $$, $$ ADMIN_ANSWER_HASH1 $$
+        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID2$$, 1, '$$ADMIN_ANSWER_HASH2$$', 1);   -- $$ ADMIN_QUESTION_ID2 $$, $$ ADMIN_ANSWER_HASH2 $$
+        call updateSecretQuestion(l_userId, $$ADMIN_QUESTION_ID3$$, 1, '$$ADMIN_ANSWER_HASH3$$', 1);   -- $$ ADMIN_QUESTION_ID3 $$, $$ ADMIN_ANSWER_HASH3 $$
 
     end if;
 end //
@@ -1398,7 +1455,7 @@ drop procedure populateSecretQuestionDataForFirstRealUser;
 
 -- drop table if exists sessionData;
 
---   27.  T10. sessionData table - to store session data in cases where Apache sessions fail us
+--   29.  T11. sessionData table - to store session data in cases where Apache sessions fail us
 create table sessionData (
     id                                        int ( 10 ) unsigned not null auto_increment,
     sessionId                                 varchar( 32 ) not null,
@@ -1415,7 +1472,7 @@ drop procedure if exists getSession;
 
 delimiter //
 
---   28.  P18. getSession stored procedure - to fetch data for a session variable previously stored
+--   30.  P19. getSession stored procedure - to fetch data for a session variable previously stored
 create procedure getSession(
    in p_sessionId                            varchar( 32 ),
    in p_sessionKey                           varchar( 32 ),
@@ -1462,7 +1519,7 @@ drop procedure if exists setSession;
 
 delimiter //
 
---   29.  P19. setSession stored procedure - to save data into the sessionData table for a name-value pair
+--   31.  P20. setSession stored procedure - to save data into the sessionData table for a name-value pair
 create procedure setSession(
    in p_sessionId                            varchar( 32 ),
    in p_sessionKey                           varchar( 32 ),
@@ -1518,7 +1575,7 @@ delimiter ;
 
 -- drop table if exists mailApiKeys;
 
---   30.  T11. mailApiKeys table to store API keys that anyone can employ to send email
+--   32.  T12. mailApiKeys table to store API keys that anyone can employ to send email
 create table if not exists mailApiKeys (
     apiId                                     int ( 10 ) unsigned              not null auto_increment,
     apiKey                                    varchar( 32 )                    not null,
@@ -1534,7 +1591,7 @@ drop procedure if exists populateApiKey;
 
 delimiter //
 
---   31.  P20. populateApiKey stored procedure to add the first API key we will employ to call the web service
+--   33.  P21. populateApiKey stored procedure to add the first API key we will employ to call the web service
 create procedure populateApiKey()
 begin
 
@@ -1574,7 +1631,7 @@ drop procedure if exists checkMailApiKey;
 
 delimiter //
 
---   32.  P21. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
+--   34.  P22. checkMailApiKey stored procedure to check if the furnished API key has a valid active flag
 create procedure checkMailApiKey(
     in p_apiKey                               varchar( 32 )
 )
@@ -1595,7 +1652,7 @@ delimiter ;
 
 -- drop table if exists mails;
 
---   33.  T12. mails table to store emails that need to be dispatched
+--   35.  T13. mails table to store emails that need to be dispatched
 create table if not exists mails (
     mailId                                    int ( 10 ) unsigned              not null auto_increment,
     sender                                    varchar( 64 )                    default null,
@@ -1617,7 +1674,7 @@ create table if not exists mails (
 
 -- drop table if exists mailAttachments;
 
---   34.  T13. mailAttachments table to store attachment data for certain emails
+--   36.  T14. mailAttachments table to store attachment data for certain emails
 create table if not exists mailAttachments (
     mailAttachmentId                         int ( 10 ) unsigned              not null auto_increment,
     mailId                                   int ( 10 ) unsigned              not null,
@@ -1630,7 +1687,7 @@ create table if not exists mailAttachments (
 
 -- drop table if exists mailsLog;
 
---   35.  T14. mailsLog table to log all the emails we successfully dispatch via scheduling
+--   37.  T15. mailsLog table to log all the emails we successfully dispatch via scheduling
 create table if not exists mailsLog (
     logId                                     int ( 10 ) unsigned              not null auto_increment,
     apiKeyId                                  int ( 10 ) unsigned              not null,
@@ -1647,7 +1704,7 @@ drop procedure if exists addEmail;
 
 delimiter //
 
---   36.  P22. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
+--   38.  P23. addEmail stored procedure to add new email to mails table, mail would not be dispatched unless all attachments are in too
 create procedure addEmail (
     in p_apiKey                              varchar( 32 ),
     in p_sender                              varchar( 64 ),
@@ -1719,7 +1776,7 @@ drop procedure if exists addMailAttachment;
 
 delimiter //
 
---   37.  P23. addMailAttachment stored procedure to add one attachment to a previously saved email message
+--   39.  P24. addMailAttachment stored procedure to add one attachment to a previously saved email message
 create procedure addMailAttachment (
     in p_mailId                              int ( 10 ) unsigned,
     in p_filename                            varchar ( 1024 ),
@@ -1851,7 +1908,7 @@ drop procedure if exists getAttachmentsForEmail;
 
 delimiter //
 
---   40.  P26. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
+--   42.  P27. getAttachmentsForEmail stored procedure to get attachments that are defined or were added for this email, assuming ready is still set to false for this mailId
 create procedure getAttachmentsForEmail (
     in p_mailId                              int ( 10 ) unsigned
 )
@@ -1878,7 +1935,7 @@ drop procedure if exists deleteEmail;
 
 delimiter //
 
---   41.  P27. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
+--   43.  P28. getAttachmentsForEmail stored procedure to delete this email, we have successfully dispatched it into the ether
 create procedure deleteEmail (
     in p_mailId                               int ( 10 ) unsigned
 )
@@ -1920,7 +1977,7 @@ drop procedure if exists logEmailDispatch;
 
 delimiter //
 
---   42.  P28. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
+--   44.  P29. logEmailDispatch stored procedure to log the use case where we have successfully sent a mail
 create procedure logEmailDispatch (
     in p_apiKeyId                             int ( 10 ) unsigned,
     in p_senderEmail                          varchar( 128 ),
@@ -1953,26 +2010,11 @@ end //
 
 delimiter ;
 
--- drop table if exists userLoginDetails;
-
-create table if not exists userLoginDetails (
-    loginId                                   int ( 10 ) unsigned not null auto_increment,
-    userId                                    int ( 10 ) unsigned not null,
-    cookie                                    varchar( 32 ) not null,
-    sessionKey                                varchar( 32 ) not null,
-    browserHash                               varchar( 32 ) not null,
-    active                                    tinyint( 1 ) not null default 0,
-    created                                   datetime not null,
-    lastUpdate                                datetime not null,
-    lastChecked                               datetime not null,
-    expires                                   datetime not null,
-    key ( loginId )
-) engine=innodb default character set=utf8;
-
 drop procedure if exists setLoginDetails;
 
 delimiter //
 
+--   45.  P30. setLoginDetails stored procedure - add additional information related to the user's successful login event
 create procedure setLoginDetails(
     in p_userId                               int ( 10 ) unsigned,
     in p_logId                                int ( 10 ) unsigned,
@@ -2031,7 +2073,7 @@ begin
     else
 
         update userLoginDetails
-        set sessionKey = l_sessionKey,
+        set sessionKey = p_sessionKey,
         lastUpdate = utc_timestamp(),
         lastChecked = utc_timestamp()
         where loginId = l_loginId;
@@ -2042,172 +2084,3 @@ begin
 end //
 
 delimiter ;
-
-drop procedure if exists getUserData;
-
-delimiter //
-
-create procedure getUserData (
-   in p_username                             varchar( 16 ),
-   in p_cookie                               varchar( 32 ),
-   in p_logId                                int( 10 ) unsigned
-)
-begin
-
-   declare l_userId                          int ( 10 ) unsigned;
-   declare l_question1                       varchar( 128 );
-   declare l_answerHash1                     varchar( 64 );
-   declare l_question2                       varchar( 128 );
-   declare l_answerHash2                     varchar( 64 );
-   declare l_question3                       varchar( 128 );
-   declare l_answerHash3                     varchar( 64 );
-
-   declare l_cookie                          varchar( 32 );
-   declare l_browserHash                     varchar( 32 );
-   declare l_active                          tinyint ( 1 ) unsigned;
-   declare l_created                         datetime;
-   declare l_lastChecked                     datetime;
-   declare l_expires                         datetime;
-
-   set l_userId = null;
-
-   set l_question1   = null;
-   set l_answerHash1 = null;
-   set l_question2   = null;
-   set l_answerHash2 = null;
-   set l_question3   = null;
-   set l_answerHash3 = null;
-
-   set l_cookie = null;
-   set l_browserHash = null;
-   set l_active = null;
-   set l_created = null;
-   set l_lastChecked = null;
-   set l_expires = null;
-
-   if p_logId is not null then
-
-       update loginAttempts
-       set status = 2
-       where logId = p_logId;
-
-   end if;
-
-   select
-       userId
-   into
-       l_userId
-   from
-       users
-   where
-       username = p_username
-   limit 1;
-
-   if l_userId is not null then
-
-       select
-           sq.question, usq.answerHash
-       into
-           l_question1, l_answerHash1
-       from
-           userSecretQuestions usq
-       inner join
-           secretQuestions sq
-       on
-           usq.questionId = sq.questionId
-       where
-           usq.userId = l_userId
-       and
-           usq.sequenceId = 1;
-
-       select
-           sq.question, usq.answerHash
-       into
-           l_question2, l_answerHash2
-       from
-           userSecretQuestions usq
-       inner join
-           secretQuestions sq
-       on
-           usq.questionId = sq.questionId
-       where
-           usq.userId = l_userId
-       and
-           usq.sequenceId = 2;
-
-       select
-           sq.question, usq.answerHash
-       into
-           l_question3, l_answerHash3
-       from
-           userSecretQuestions usq
-       inner join
-           secretQuestions sq
-       on
-           usq.questionId = sq.questionId
-       where
-           usq.userId = l_userId
-       and
-           usq.sequenceId = 3;
-
-       if p_cookie is not null then
-
-           select
-               cookie,
-               browserHash,
-               active,
-               created,
-               lastChecked,
-               expires
-           into
-               l_cookie,
-               l_browserHash,
-               l_active,
-               l_created,
-               l_lastChecked,
-               l_expires
-           from
-               userLoginDetails
-           where
-               userId = l_userId
-           and
-               cookie = p_cookie
-           limit 1;
-
-       end if;
-
-       select
-           userId,
-           username,
-           firstName,
-           lastName,
-           email,
-           salt,
-           password,
-           userKey,
-           accessKey,
-           active,
-           status,
-           exclude,
-           notificationMask,
-
-           l_question1 as question1,
-           l_answerHash1 as answerHash1,
-           l_question2 as question2,
-           l_answerHash2 as answerHash2,
-           l_question3 as question3,
-           l_answerHash3 as answerHash3,
-
-           l_cookie as cookie,
-           l_browserHash as browserHash,
-           l_active as sessionActive,
-           l_created as cookieCreated,
-           l_lastChecked as lastChecked,
-           l_expires as cookieExpires
-       from
-           users
-       where
-           userId = l_userId;
-
-   end if;
-end
