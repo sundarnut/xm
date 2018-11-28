@@ -17,8 +17,9 @@ drop table if exists xmSourceTargetGroups01;
 
 create table xmSourceTargetGroups01 (
     sourceTargetGroupId                    int ( 10 ) unsigned NOT NULL AUTO_INCREMENT,
-    name                                   varchar( 64 ) NOT NULL,
+    userId                                 int ( 10 ) unsigned NOT NULL,
     groupId                                int ( 10 ) unsigned DEFAULT NULL,
+    name                                   varchar( 64 ) NOT NULL,
     enabled                                tinyint ( 1 ) unsigned NOT NULL DEFAULT 0,
     created                                datetime NOT NULL,
     lastUpdated                            datetime NOT NULL,
@@ -50,13 +51,11 @@ create table xmSourceTargetChangeLogs01 (
     INDEX ix_sourceTargetId ( sourceTargetId )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-drop procedure if exists createOrUpdateSourceTargets;
+drop procedure if exists createOrUpdateSourceTargets01;
 
 delimiter //
 
-create procedure createOrUpdateSourceTargets (
+create procedure createOrUpdateSourceTargets01 (
     in p_sourceTargetId                       int ( 10 ) unsigned,
     in p_userId                               int ( 10 ) unsigned,
     in p_name                                 varchar( 64 ),
@@ -74,8 +73,9 @@ begin
     declare l_errorMessage                   varchar( 512 );
     declare l_element                        varchar( 1024 );
     declare l_groupId                        int ( 10 ) unsigned;
-    declare l_sequenceId                     int ( 10 ) unsigned;   
-    
+    declare l_sequenceId                     int ( 10 ) unsigned;
+    declare l_sourceTargetGroupId            int ( 10 ) unsigned;
+
     set l_message = '';
     set l_errorMessage = null;
     set l_sourceTargetId = null;
@@ -139,11 +139,21 @@ begin
                     utc_timestamp()
                 );
 
-            else
-                set l_errorFlag = 5;
+                select last_insert_id() into l_sourceTargetGroupId;
 
+                set l_message = concat('{"NewSourceTargetGroup":{\n',
+                                    '"name":"', replace(p_name, '"', '\"'), '",\n',
+                                    '"userId":', p_userId, ',\n',
+                                    '"groupId":', l_groupId, ',\n',
+                                    '"sourceTargetGroupId":', l_sourceTargetGroupId, '}}');
+
+                insert xmSourceTargetChangeLogs01 (
+                        sourceTargetId, log, created
+                    ) values (
+                        0, l_message, utc_timestamp()
+                    );
             end if;
-                                                                                                   
+                                              
             if l_sequenceId is null then
                 select xST.sequenceId into l_sequenceId from xmSourceTargets01 xST
                 inner join xmSourceTargetMapping01 xSTM on xST.sourceTargetId = xSTM.sourceTargetId
@@ -156,7 +166,7 @@ begin
                 end if;
             end if;
 
-            insert xmSourceTargets (
+            insert xmSourceTargets01 (
                 name,
                 groupId,
                 sequenceId,
@@ -176,7 +186,7 @@ begin
 
             select last_insert_id() into l_sourceTargetId;
 
-            insert xmSourceTargetMapping (
+            insert xmSourceTargetMapping01 (
                 sourceTargetId,
                 userId,
                 enabled,
@@ -192,13 +202,20 @@ begin
 
             set l_message = concat('{"NewSourceTarget":{\n',
                                 '"name":"', replace(p_name, '"', '\"'), '",\n',
-                                '"groupId":', ifnull(p_groupId, 'null'), ',\n',
-                                '"isPrimary":', ifnull(p_isPrimary, 'null'), ',\n',
-                                '"enabled":', ifnull(p_enabled, 'null'), '}}');
+                                '"groupId":', ifnull(l_groupId, 'null'), ',\n',
+                                '"isPrimary":', p_isPrimary, ',\n',
+                                '"sequenceId":', l_sequenceId, ',\n',
+                                '"enabled":', p_enabled, '}}');
+
+            insert xmSourceTargetChangeLogs01 (
+                sourceTargetId, log, created
+            ) values (
+                l_sourceTargetId, l_message, utc_timestamp()
+            );
 
         else
 
-            set l_query = 'update xmSourceTargets set ';
+            set l_query = 'update xmSourceTargets01 set ';
             set l_message = '{"OldSourceTarget":{';
 
             if p_name is not null then
@@ -243,32 +260,11 @@ end //
 
 delimiter ;
 
-
-drop procedure if exists testProcedure01;
-
-delimiter //
-
-create procedure testProcedure01(
-    in p_xml                        varchar( 1000 )
-)
-begin
-
-    declare l_i                     int ( 10 ) unsigned;
-    declare l_count                 int ( 10 ) unsigned;
-
-    set l_i = 1;
-    select ExtractValue(p_xml, 'count(a/b)') into l_count;
-
-    while l_i <= l_count do
-
-        select ExtractValue(p_xml, 'a/b[$l_i]') as number;
-        set l_i = l_i + 1;
-
-    end while;
-
-end //
-
-delimiter ;
-
-call testProcedure01('<a><b>One</b><b>Two</b><b>Three</b></a>');
-                                                                                                   
+call createOrUpdateSourceTargets01(null, null, null, null, null, null, null);
+call createOrUpdateSourceTargets01(null, 2, null, null, null, null, null);
+call createOrUpdateSourceTargets01(null, 2, '', null, null, null, null);
+call createOrUpdateSourceTargets01(null, 2, '', null, null, 0, 0);
+call createOrUpdateSourceTargets01(null, 2, 'Test One', null, null, 0, 0);
+call createOrUpdateSourceTargets01(null, 2, 'Test One', null, null, 1, 1);
+call createOrUpdateSourceTargets01(null, 2, 'Test One', null, null, 0, 0);
+call createOrUpdateSourceTargets01(null, 2, 'Test Two', null, null, 1, 1);
