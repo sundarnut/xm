@@ -242,3 +242,33 @@ begin
 end //
 
 delimiter ;
+
+
+drop procedure if exists testProcedure01;
+
+delimiter //
+
+create procedure testProcedure01(
+    in p_xml                        varchar( 1000 )
+)
+begin
+
+    declare l_i                     int ( 10 ) unsigned;
+    declare l_count                 int ( 10 ) unsigned;
+
+    set l_i = 1;
+    select ExtractValue(p_xml, 'count(a/b)') into l_count;
+
+    while l_i <= l_count do
+
+        select ExtractValue(p_xml, 'a/b[$l_i]') as number;
+        set l_i = l_i + 1;
+
+    end while;
+
+end //
+
+delimiter ;
+
+call testProcedure01('<a><b>One</b><b>Two</b><b>Three</b></a>');
+                                                                                                   
