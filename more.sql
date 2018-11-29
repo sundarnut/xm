@@ -48,7 +48,7 @@ create table xmSourceTargetGroups01 (
     created                                datetime NOT NULL,
     lastUpdated                            datetime NOT NULL,
     PRIMARY KEY ( sourceTargetGroupId ),
-    UNIQUE INDEX ix_userId_groupId ( userId, groupId )
+    INDEX ix_name ( name )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 drop table if exists xmSourceTargetMapping01;
@@ -61,8 +61,7 @@ create table xmSourceTargetMapping01 (
     created                                datetime NOT NULL,
     lastUpdated                            datetime NOT NULL,
     PRIMARY KEY ( mappingId ),
-    UNIQUE INDEX ix_sourceTargetId ( sourceTargetId ),
-    INDEX ix_userId ( userId )
+    UNIQUE INDEX ix_userId_sourceTargetId ( userId, sourceTargetId )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 drop table if exists xmSourceTargetChangeLogs01;
@@ -92,11 +91,12 @@ create procedure createOrUpdateSourceTargets01 (
 )
 begin
 
-    declare l_query                          varchar( 1024 );
-    declare l_message                        varchar( 1024 );
-    declare l_sourceTargetId                 int ( 10 ) unsigned;
     declare l_errorFlag                      tinyint ( 1 ) unsigned;
     declare l_errorMessage                   varchar( 512 );
+    declare l_query                          varchar( 1024 );
+    declare l_message                        varchar( 1024 );
+
+    declare l_sourceTargetId                 int ( 10 ) unsigned;
     declare l_element                        varchar( 1024 );
     declare l_groupId                        int ( 10 ) unsigned;
     declare l_sequenceId                     int ( 10 ) unsigned;
@@ -225,6 +225,7 @@ begin
                 end if;
             end if;
 
+            -- Create new sourceTarget row, get the sourceTargetId generated
             insert xmSourceTargets01 (
                 name,
                 sequenceId,
@@ -243,6 +244,7 @@ begin
 
             select last_insert_id() into l_sourceTargetId;
 
+            -- Insert the mapping that binds it to this user
             insert xmSourceTargetMapping01 (
                 sourceTargetId,
                 userId,
@@ -258,8 +260,6 @@ begin
             );
 
             set l_message = concat('{"NewSourceTarget":{\n',
-                                '"sourceTargetId":', l_sourceTargetId, ',\n',
-                                '"userId":', p_userId, ',\n',
                                 '"name":"', replace(p_name, '"', '\"'), '",\n',
                                 '"groupId":', ifnull(l_groupId, 'null'), ',\n',
                                 '"isPrimary":', p_isPrimary, ',\n',
@@ -372,17 +372,6 @@ begin
                 set l_message = concat(l_message, ',"groupId":', p_groupId);
             end if;
 
-            if p_sequenceId is not null then
-
-                if l_message != '{"OldSourceTarget":{' then
-                    set l_query = concat(l_query, ',');
-                    set l_message = concat(l_message, ',\n');
-                end if;
-
-                set l_query = concat(l_query, 'sequenceId=', p_sequenceId);
-                set l_message = concat(l_message, ',"sequenceId":', p_sequenceId);
-            end if;
-
             if p_isPrimary is not null then
 
                 if l_message != '{"OldSourceTarget":{' then
@@ -392,6 +381,17 @@ begin
 
                 set l_query = concat(l_query, 'isPrimary=', p_isPrimary);
                 set l_message = concat(l_message, ',"isPrimary":', p_isPrimary);
+            end if;
+
+            if p_sequenceId is not null then
+
+                if l_message != '{"OldSourceTarget":{' then
+                    set l_query = concat(l_query, ',');
+                    set l_message = concat(l_message, ',\n');
+                end if;
+
+                set l_query = concat(l_query, 'sequenceId=', p_sequenceId);
+                set l_message = concat(l_message, ',"sequenceId":', p_sequenceId);
             end if;
 
             if p_enabled is not null then
@@ -405,14 +405,38 @@ begin
                 set l_message = concat(l_message, ',"enabled":', p_enabled);
             end if;
 
-            if 
+            if l_query = 'update xmSourceTargets01 set ' and l_message = '{"OldSourceTarget":{' then
+                set l_message = '';
+            elseif l_query != 'update xmSourceTargets01 set ' then
+                set l_query = concat(l_query, ' lastUpdated = utc_timestamp() where sourceTargetId = '", p_sourceTargetId, ';');
+                set l_message = concat(l_message, '}}');
 
-            set @statement = l_query;
-            prepare stmt from @statement;
-            execute stmt;
-            deallocate prepare stmt;
+                set @statement = l_query;
+                prepare stmt from @statement;
+                execute stmt;
+                deallocate prepare stmt;
 
+            end if;
         end if;
+
+    end if;
+
+    if l_message != '' then
+
+        insert xmSourceTargetChangeLogs01 (
+            sourceTargetId, userId, log, created
+        ) values (
+            l_sourceTargetId, p_userId, l_message, utc_timestamp()
+        );
+
+    end if;
+
+    if l_errorFlag > 0 then
+        insert xmSourceTargetChangeLogs01 (
+            sourceTargetId, userId, log, created
+        ) values (
+            0, 1, l_errorMessage, utc_timestamp()
+        );
 
     end if;
 
