@@ -409,7 +409,7 @@ begin
             if l_query = 'update xmSourceTargets01 set ' and l_message = '{"OldSourceTarget":{' then
                 set l_message = '';
             elseif l_query != 'update xmSourceTargets01 set ' then
-                set l_query = concat(l_query, ' lastUpdated = utc_timestamp() where sourceTargetId = '", p_sourceTargetId, ';');
+                set l_query = concat(l_query, ', lastUpdated=utc_timestamp() where sourceTargetId=', p_sourceTargetId, ';');
                 set l_message = concat(l_message, '}}');
 
                 set @statement = l_query;
