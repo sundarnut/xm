@@ -61,6 +61,7 @@ create table xmSourceTargetMapping01 (
     created                                datetime NOT NULL,
     lastUpdated                            datetime NOT NULL,
     PRIMARY KEY ( mappingId ),
+    INDEX ix_userId ( userId ),
     UNIQUE INDEX ix_userId_sourceTargetId ( userId, sourceTargetId )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
