@@ -81,6 +81,36 @@ drop procedure if exists createOrUpdateSourceTargets01;
 
 delimiter //
 
+drop table if exists xmSourceTargetMapping01;
+
+create table xmSourceTargetMapping01 (
+    mappingId                              int ( 10 ) unsigned NOT NULL AUTO_INCREMENT,
+    userId                                 int ( 10 ) unsigned NOT NULL,
+    sourceTargetId                         int ( 10 ) unsigned NOT NULL,
+    enabled                                tinyint ( 1 ) unsigned NOT NULL DEFAULT 0,
+    created                                datetime NOT NULL,
+    lastUpdated                            datetime NOT NULL,
+    PRIMARY KEY ( mappingId ),
+    INDEX ix_userId ( userId ),
+    UNIQUE INDEX ix_userId_sourceTargetId ( userId, sourceTargetId )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+drop table if exists xmSourceTargetChangeLogs01;
+
+create table xmSourceTargetChangeLogs01 (
+    logId                                  int ( 10 ) unsigned NOT NULL AUTO_INCREMENT,
+    sourceTargetId                         int ( 10 ) unsigned NOT NULL,
+    userId                                 int ( 10 ) unsigned NOT NULL,
+    log                                    varchar( 8192 ) DEFAULT NULL,
+    created                                datetime NOT NULL,
+    PRIMARY KEY ( logId ),
+    INDEX ix_sourceTargetId ( sourceTargetId )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+drop procedure if exists createOrUpdateSourceTargets01;
+
+delimiter //
+
 create procedure createOrUpdateSourceTargets01 (
     in p_sourceTargetId                       int ( 10 ) unsigned,
     in p_userId                               int ( 10 ) unsigned,
@@ -273,6 +303,8 @@ begin
                 l_sourceTargetId, p_userId, l_message, utc_timestamp()
             );
 
+            set l_message = '';
+
             if l_insertFlag = 1 then
 
                 insert xmSourceTargetGroups01 (
@@ -286,7 +318,7 @@ begin
                 ) values (
                     l_sourceTargetId,
                     l_groupId,
-                    l_userId,
+                    p_userId,
                     p_name,
                     1,
                     utc_timestamp(),
@@ -300,12 +332,6 @@ begin
                                     '"name":"', replace(p_name, '"', '\"'), '",\n',
                                     '"userId":', p_userId, ',\n',
                                     '"groupId":', l_groupId, '}}');
-
-                insert xmSourceTargetChangeLogs01 (
-                        sourceTargetId, userId, log, created
-                    ) values (
-                        l_sourceTargetId, p_userId, l_message, utc_timestamp()
-                    );
 
             elseif l_insertFlag = 2 then
 
@@ -328,13 +354,6 @@ begin
                                 '"groupId":', p_groupId, ',\n',
                                 '"oldPrimarySourceTargetId":', l_id, ',\n',
                                 '"newPrimarySourceTargetId":', l_sourceTargetId, '}}');
-
-                    insert xmSourceTargetChangeLogs01 (
-                            sourceTargetId, userId, log, created
-                        ) values (
-                            l_sourceTargetId, p_userId, l_message, utc_timestamp()
-                        );
-
                 end if;
             end if;
 
@@ -409,13 +428,13 @@ begin
             if l_query = 'update xmSourceTargets01 set ' and l_message = '{"OldSourceTarget":{' then
                 set l_message = '';
             elseif l_query != 'update xmSourceTargets01 set ' then
-                set l_query = concat(l_query, ', lastUpdated=utc_timestamp() where sourceTargetId=', p_sourceTargetId, ';');
+                set l_query = concat(l_query, ' lastUpdated = utc_timestamp() where sourceTargetId = ', p_sourceTargetId, ';');
                 set l_message = concat(l_message, '}}');
 
-                set @statement = l_query;
-                prepare stmt from @statement;
-                execute stmt;
-                deallocate prepare stmt;
+--                set @statement = l_query;
+--                prepare stmt from @statement;
+--                execute stmt;
+--                deallocate prepare stmt;
 
             end if;
         end if;
