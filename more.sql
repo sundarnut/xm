@@ -273,7 +273,7 @@ begin
                 l_sourceTargetId, p_userId, l_message, utc_timestamp()
             );
 
-            if l_insertGroup = 1 then
+            if l_insertFlag = 1 then
 
                 insert xmSourceTargetGroups01 (
                     sourceTargetId,
@@ -307,7 +307,7 @@ begin
                         l_sourceTargetId, p_userId, l_message, utc_timestamp()
                     );
 
-            elseif l_insertGroup = 2 then
+            elseif l_insertFlag = 2 then
 
                 -- Find existing row in xmSourceTargetGroups01 where isPrimary = 1 for same group
                 select sourceTargetId into l_id from xmSourceTargetGroups01 where
