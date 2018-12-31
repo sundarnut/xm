@@ -1,5 +1,3 @@
-use APPSEC_DB;
-
 drop table if exists xmSourceTargets01;
 
 create table xmSourceTargets01 (
@@ -56,8 +54,10 @@ begin
     declare l_sequenceId                     int ( 10 ) unsigned default p_sequenceId;
     declare l_sourceTargetGroupId            int ( 10 ) unsigned;
     declare l_id                             int ( 10 ) unsigned default null;
+    declare l_id1                            int ( 10 ) unsigned default null;
     declare l_isPrimary                      tinyint ( 1 ) unsigned;
     declare l_enabled                        tinyint ( 1 ) unsigned;
+    declare l_section                        int ( 10 ) unsigned default 0;
 
     set l_isPrimary = ifnull(p_isPrimary, 0);
     set l_enabled = ifnull(p_enabled, 0);
@@ -66,6 +66,7 @@ begin
     if p_userId is null or p_userId = 0 then
         set l_errorFlag = 1;
         set l_errorMessage = concat('userId parameter has invalid value: ', ifnull(p_userId, ' null'));
+        set l_section = 1;
 
     -- 2. Next, check if a blank name has come in for a new request
     elseif p_name is null or p_name = '' then
@@ -73,6 +74,7 @@ begin
         if p_sourceTargetId is null then
             set l_errorFlag = 1;
             set l_errorMessage = concat('Incorrect value provided for name parameter, found: ', ifnull(p_name, 'null'));
+            set l_section = l_section | 2;
         end if;
 
     else
@@ -86,11 +88,14 @@ begin
                (p_sourceTargetId is not null and p_sourceTargetId != l_id)) then
             set l_errorFlag = 1;
             set l_errorMessage = concat('Found another sourceTarget row that has the same name, with ID: ', l_id);
+            set l_section = l_section | 4;
         end if;
-    end if;
 
-    if l_id is not null then
-        set l_id = null;
+        -- Reset l_id, if set
+        if l_id is not null then
+            set l_id = null;
+        end if;
+
     end if;
 
     -- 4. Check if we have a different userId coming in, not bound to original sourceTarget
@@ -103,11 +108,12 @@ begin
             set l_errorFlag = 1;
             set l_errorMessage = concat('UserId: ', l_id, ' is bound to existing sourceTargetId: ', p_sourceTargetId,
                '. Not relevant for passed userId: ', p_userId);
+            set l_section = l_section | 8;
         end if;
-    end if;
 
-    if l_id is not null then
-        set l_id = null;
+        if l_id is not null then
+            set l_id = null;
+        end if;
     end if;
 
     -- 5. Check for an attempt to bring in a groupId absent for this user
@@ -119,6 +125,7 @@ begin
         if l_id is null then
             set l_errorFlag = 1;
             set l_errorMessage = concat('UserId: ', p_userId, ' does not have groupId: ', p_groupId);
+            set l_section = l_section | 16;
         else
             set l_id = null;
         end if;
@@ -133,57 +140,81 @@ begin
             set l_errorFlag = 1;
             set l_errorMessage = concat('UserId: ', p_userId, ' already has sequenceId: ',
                                      p_sequenceId, ' for sourceTargetId: ', l_id);
-
+            set l_section = l_section | 32;
             set l_id = null;
         end if;
     end if;
 
     -- 7. Last is a contrived check for group assignment with primary modification for existing entries
-    -- Here is the rule-book:
+    -- Incoming p_isPrimary has a value (non-null)
     if l_errorFlag = 0 and p_isPrimary is not null then
+
+        -- and p_sourceTargetId has a valid value, we are doing an update operation
         if p_sourceTargetId is not null and p_sourceTargetId > 0 then
+
+            -- However, p_groupId is not specified. We need to look this up
             if p_groupId is null then
-                select groupId into l_groupId from
+                select groupId into l_id from
                     xmSourceTargets01 where sourceTargetId = p_sourceTargetId;
 
-                if l_groupId is not null then
+                if l_id is not null then
                     if p_isPrimary = 1 then
                         -- Reset existing isPrimary to 0, as we have the incoming candidate as the new primary for our group
                         update xmSourceTargets01 set isPrimary = 0, lastUpdated = utc_timestamp()
-                            where userId = p_userId and groupId = l_groupId and isPrimary = 1;
+                            where userId = p_userId and groupId = l_id and isPrimary = 1;
+
+                        set l_section = l_section | 64;
                     else
                        -- Else, we have isPrimary = 0. If we reset the existing one to non-primary, nominate the first one as primary
                        -- Find the first willing candidate
-                       select sourceTargetId into l_id from xmSourceTargets01
-                           where groupId = l_groupId and sourceTargetId != p_sourceTargetId
+                       select sourceTargetId into l_id1 from xmSourceTargets01
+                           where groupId = l_id and sourceTargetId != p_sourceTargetId
                            and isPrimary = 0
                            order by sourceTargetId limit 1;
 
-                       if l_id != null then
-                           update xmSourceTargets set isPrimary = 1, lastUpdated = utc_timestamp()
-                              where sourceTargetId = l_id;
-
-                           set l_id = null;
+                       if l_id1 is not null then
+                           update xmSourceTargets01 set isPrimary = 1, lastUpdated = utc_timestamp()
+                              where sourceTargetId = l_id1;
+                           set l_section = l_section | 128;
+                           set l_id1 = null;
+                       else
+                           -- We were unable to find another row that could be turned isPrimary for this group
+                           -- Probably because this is the only member that is primary for this group and cannot be turned off
+                           set l_errorFlag = 1;
+                           set l_errorMessage = concat('This is the only entry for this groupId: ', l_id,
+                                                           '. The isPrimary field cannot be turned off.');
+                           set l_section = l_section | 256;
                        end if;
                     end if;
+
+                    -- Reset l_id back to null
+                    set l_id = null;
                 end if;
 
             elseif p_groupId > 0 then
                 if p_isPrimary = 1 then
                     update xmSourceTargets01 set isPrimary = 0 where userId = p_userId
                         and groupId = p_groupId and isPrimary = 1;
+                        set l_section = l_section | 512;
                 else
                     -- This is for p_isPrimary = 0
                     select sourceTargetId into l_id from xm_sourceTargets
                     where groupId = p_groupId and isPrimary = 0
                     and sourceTargetId != p_sourceTargetId
-                    order by Id limit 1;
+                    order by sourceTargetId limit 1;
 
-                    if l_id != null then
-                        update xmSourceTargets set isPrimary = 1, lastUpdated = utc_timestamp()
+                    if l_id is not null then
+                        update xmSourceTargets01 set isPrimary = 1, lastUpdated = utc_timestamp()
                             where sourceTargetId = l_id;
-
+                        set l_section = l_section | 1024;
                         set l_id = null;
+                    else
+                        -- We were unable to find another row that could be turned isPrimary for this group
+                        -- Probably because this is the only member that is primary for this group and cannot be turned off
+                        set l_errorFlag = 1;
+                        set l_errorMessage = concat('This is the only entry for this groupId: ', p_groupId,
+                                                       '. The isPrimary field cannot be turned off.');
+                        set l_section = l_section | 2048;
                     end if;
                 end if;
 
@@ -197,6 +228,8 @@ begin
                     where userId = p_userId
                     order by groupId desc limit 1;
 
+                set l_section = l_section | 4096;
+
                 -- If none existed, set 1 or else increment by 1
                 if l_groupId is null then
                     set l_groupId = 1;
@@ -206,12 +239,12 @@ begin
             end if;
 
         elseif p_groupId is null then
-            set l_groupId = null;
-
             -- Find last group ID
             select groupId into l_groupId from xmSourceTargets01
                 where userId = p_userId
                 order by groupId desc limit 1;
+
+            set l_section = l_section | 8192;
 
             -- If none existed, set 1 or else increment by 1
             if l_groupId is null then
@@ -225,6 +258,7 @@ begin
                 where userId = p_userId and
                 groupId = p_groupId
                 and isPrimary = 1;
+
         end if;
     end if;
 
@@ -275,7 +309,8 @@ begin
                                 '"groupId":', ifnull(l_groupId, 'null'), ',\n',
                                 '"isPrimary":', l_isPrimary, ',\n',
                                 '"sequenceId":', l_sequenceId, ',\n',
-                                '"enabled":', l_enabled, '}}');
+                                '"enabled":', l_enabled, '\n',
+                                '"section":', l_section,'}}');
 
             insert xmSourceTargetLogs01 (
                 sourceTargetId, log, created
@@ -344,13 +379,15 @@ begin
 
             if l_query != 'update xmSourceTargets01 set ' then
                 set l_query = concat(l_query, ',lastUpdated=utc_timestamp() where sourceTargetId=', p_sourceTargetId, ';');
-                set l_message = concat(l_message, ',"userId":', p_userId, '}}');
+                set l_message = concat(l_message, ',"userId":', p_userId, ',"section":', l_section, '}}');
+
+                set l_section = l_section | 65536;
 
                 -- Execute the query!
---              set @statement = l_query;
---              prepare stmt from @statement;
---              execute stmt;
---              deallocate prepare stmt;
+                set @statement = l_query;
+                prepare stmt from @statement;
+                execute stmt;
+                deallocate prepare stmt;
 
                 insert xmSourceTargetLogs01 (
                     sourceTargetId, log, created
@@ -365,11 +402,12 @@ begin
         insert xmSourceTargetLogs01 (
             sourceTargetId, log, created
         ) values (
-            0, l_errorMessage, utc_timestamp()
+            l_section, l_errorMessage, utc_timestamp()
         );
     end if;
 
-    select l_errorFlag as errorFlag,
+    select l_section as section,
+           l_errorFlag as errorFlag,
            l_sourceTargetId as sourceTargetId,
            l_groupId as groupId,
            l_message as message,
@@ -400,174 +438,13 @@ delimiter ;
 -- call createOrUpdateSourceTargets01(5, 2, null, 1, 1, null, null);
 -- call createOrUpdateSourceTargets01(5, 2, null, null, 1, null, null);
 -- call createOrUpdateSourceTargets01(5, 2, null, null, 10, null, null);
-
-
-update xmSourceTargets01 set sequenceId=10,lastUpdated=utc_timestamp() where sourceTargetId=5;
-update xmSourceTargets01 set name='D', lastUpdated=utc_timestamp() where sourceTargetId=5;
-update xmSourceTargets01 set name='D',groupId=1, lastUpdated=utc_timestamp() where sourceTargetId=5;
-update xmSourceTargets01 set groupId=1,lastUpdated=utc_timestamp() where sourceTargetId=5;
+-- call createOrUpdateSourceTargets01(5, 2, null, null, 10, null, null);
+-- call createOrUpdateSourceTargets01(4, 2, null, null, null, 1, 1);
+-- call createOrUpdateSourceTargets01(4, 2, null, null, null, 0, null);
+-- call createOrUpdateSourceTargets01(5, 2, null, null, null, 0, 1);
+-- call createOrUpdateSourceTargets01(null, 2, 'F', null, null, 1, 1);
+call createOrUpdateSourceTargets01(6, 2, null, null, null, 0, null);
 
 -- select * from xmSourceTargetLogs01 order by logId desc;
-select * from xmSourceTargets01;
+select * from xmSourceTargets01 order by sourceTargetId desc;
 
-/*
-drop procedure if exists createOrUpdateSourceTargets01;
-
-delimiter //
-
-create procedure createOrUpdateSourceTargets01 (
-    in p_sourceTargetId                       int ( 10 ) unsigned,
-    in p_userId                               int ( 10 ) unsigned,
-    in p_name                                 varchar( 64 ),
-    in p_groupId                              int ( 10 ) unsigned,
-    in p_sequenceId                           int ( 10 ) unsigned,
-    in p_isPrimary                            tinyint ( 1 ) unsigned,
-    in p_enabled                              tinyint ( 1 ) unsigned
-)
-begin
-
-    declare l_errorFlag                      tinyint ( 1 ) unsigned;
-    declare l_errorMessage                   varchar( 512 );
-    declare l_query                          varchar( 1024 );
-    declare l_message                        varchar( 1024 );
-
-    declare l_sourceTargetId                 int ( 10 ) unsigned;
-    declare l_element                        varchar( 1024 );
-    declare l_groupId                        int ( 10 ) unsigned;
-    declare l_sequenceId                     int ( 10 ) unsigned;
-    declare l_sourceTargetGroupId            int ( 10 ) unsigned;
-    declare l_insertFlag                     tinyint ( 1 ) unsigned; 
-    declare l_id                             int ( 10 ) unsigned;
-
-    set l_message = '';
-    set l_errorMessage = null;
-    set l_sourceTargetId = null;
-    set l_groupId = p_groupId;
-    set l_sequenceId = p_sequenceId;
-    set l_id = null;
-    set l_insertFlag = 0;
-
-    -- 1. First, check if a blank user has come in - we need a valid userId
-    if p_userId is null or p_userId = 0 then
-
-        set l_errorFlag = 1;
-        set l_errorMessage = concat('userId parameter has invalid value: ', ifnull(p_userId, ' null'));
-
-    -- 2. Next, check if a blank name has come in for a new request
-    elseif p_name is null or p_name = '' then
-
-        -- Blank or null user names are not allowed for new inserts, check for null p_sourceTargetId
-        if p_sourceTargetId is null then
-            set l_errorFlag = 1;
-            set l_errorMessage = concat('Incorrect value provided for name parameter, found: ', ifnull(p_name, 'null'));
-        end if;
-    else
-        -- We have a valid p_name with text, check if this exists prior for the same user
-        select sourceTargetId into l_sourceTargetId from xmSourceTargets01
-            where name = p_name and userId = p_userId;
-
-        -- This means, we found an existing name with a different ID for the same user
-        if l_sourceTargetId is not null and
-            ((p_sourceTargetId is null and l_sourceTargetId is not null) or
-               (p_sourceTargetId is not null and p_sourceTargetId != l_sourceTargetId)) then
-
-            set l_errorFlag = 1;
-            set l_errorMessage = concat('Found another sourceTarget row with same name, with ID: ', l_sourceTargetId);
-        end if;
-    end if;
-
-    -- 4. Check if we have a different userId coming in, not bound to original sourceTarget
-    if l_errorFlag = 0 and p_sourceTargetId is not null then
-
-        select userId into l_id from xmSourceTargets01 where sourceTargetId = p_sourceTargetId;
-
-        -- Attempt to assign incorrect user to a sourceTargetId
-        if l_id != p_userId then
-
-            set l_errorFlag = 1;
-            set l_errorMessage = concat('UserId: ', l_id, ' is bound to existing sourceTargetId: ', l_sourceTargetId,
-               '. Not relevant for passed userId: ', p_userId);
-        end if;
-    end if;
-
-    -- 5. Check for an attempt to bring in a groupId absent for this user
-    if l_errorFlag = 0 and p_groupId is not null then
-
-        set l_id = null;
-
-        select sourceTargetId into l_id from xmSourceTargets01 where
-            userId = p_userId and groupId = p_groupId
-            order by sourceTargetId limit 1;
-
-        if l_id is null then
-
-            set l_errorFlag = 1;
-            set l_errorMessage = concat('UserId: ', p_userId, ' does not have groupId: ', p_groupId);
-
-        end if;
-    end if;
-
-    select l_errorFlag as errorFlag,
-           l_groupId as groupId,
-           l_message as message,
-           l_query as query,
-           l_errorMessage as errorMessage;
-
-end //
-
-delimiter ;
-*/
-call createOrUpdateSourceTargets01 (
-null,
-2,
-'A',
-null,
-null,
-null,
-null );
-/*
-insert xmSourceTargets01 (
-    name,
-    userId,
-    groupId,
-    sequenceId,
-    isPrimary,
-    enabled,
-    created,
-    lastUpdated
-)
-values (
- 'A',
- 2,
- null,
- 1,
- 0,
- 1,
- utc_timestamp(),
- utc_timestamp()
-);
-
-
--- select * from xmSourceTargets01;
-call createOrUpdateSourceTargets01(null, null, null, null, null, null, null);
-
-call createOrUpdateSourceTargets01(null, 2, null, null, null, null, null);
-call createOrUpdateSourceTargets01(null, 2, '', null, null, null, null);
-call createOrUpdateSourceTargets01(null, 2, '', null, null, 0, 0);
-
-call createOrUpdateSourceTargets01(null, 2, 'Test One', null, null, 0, 1);
-call createOrUpdateSourceTargets01(null, 2, 'Test Two', null, null, 1, 1);
-call createOrUpdateSourceTargets01(null, 2, 'Test Three', 1, null, 0, 1);
-
--- call createOrUpdateSourceTargets01(null, 2, 'Test Three', null, null, 1, 1);
-
-call createOrUpdateSourceTargets01(null, 2, 'Test Two', null, null, 1, 1);
-
--- call createOrUpdateSourceTargets01(null, 2, 'Test One', null, null, 0, 0);
-
--- select * from xmSourceTargets01;
-*/
-
--- call createOrUpdateSourceTargets01(null, 2, 'Foo', 2, null, 0, 0);
-
--- select * from xmSourceTargetChangeLogs01;
