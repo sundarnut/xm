@@ -286,7 +286,7 @@ if (($noLog === 0) && ($xmSession->getUserLogged() === 0)) {
         $inputJson["request"]      = $elements;
  
         curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "logAccess.php");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: 76976f6469ac4ccdbae99a39adc11d69'));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: $$APIKEY$$'));
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode(json_encode($inputJson)));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -332,7 +332,7 @@ if (($noLog === 0) && ($xmSession->getUserLogged() === 0)) {
 
             curl_setopt($ch, CURLOPT_URL,"https://passion8cakes.com/send_mail_2.php");
             curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                            'ApiKey: d438964f23c14bea9ea94bcfeebe5bb9'
+                            'ApiKey: $$APIKEY$$'
                        ));
 
             curl_setopt($ch, CURLOPT_SSLVERSION, 6);
@@ -443,7 +443,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") && (postedFromSame($_SERVER["HTTP_RE
         $inputJson["request"] = $elements;
  
         curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "getUserData.php");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: 76976f6469ac4ccdbae99a39adc11d69'));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: $$APIKEY$$'));
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode(json_encode($inputJson)));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
