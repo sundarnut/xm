@@ -211,7 +211,7 @@ if (!$xmSession) {
 
             curl_setopt($ch, CURLOPT_URL,"https://passion8cakes.com/send_mail_2.php");
             curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                            'ApiKey: d438964f23c14bea9ea94bcfeebe5bb9'
+                            'ApiKey: $$APIKEY2$$'
                        ));
 
             curl_setopt($ch, CURLOPT_SSLVERSION, 6);
