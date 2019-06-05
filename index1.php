@@ -85,9 +85,6 @@
 // JavaScript methods:
 // loadLoginPage: set the tab focus on login field
 // validateLoginForm: verify that email field has been furnished correctly
-//
-// Revisions:
-// 1. Sundar Krishnamurthy - sundar.krishnamurthy@concur.com                           12/24/2016    Coding and commenting started
 
 ini_set('session.cookie_httponly', TRUE);           // Mitigate XSS
 ini_set('session.session.use_only_cookies', TRUE);  // No session fixation
@@ -169,7 +166,7 @@ if (!$xmSession) {
         $ch = curl_init();
 
         curl_setopt($ch, CURLOPT_URL, $global_siteUrl . "getSettings.php");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: 76976f6469ac4ccdbae99a39adc11d69'));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('ApiKey: $$APIKEY$$'));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
